@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Quản lý đăng ký — TT Cấp cứu 115</title>
+<style>
+  :root{--navy:#0B3D91;--red:#D32F2F;--gold:#E0A800;--bg:#F7F9FC;--line:#E5E7EB;--muted:#6B7280;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:#1F2937;}
+  header{background:var(--navy);color:#fff;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  header h1{margin:0;font-size:18px;font-weight:800;}
+  .wrap{max-width:1200px;margin:0 auto;padding:22px;}
+  .gate{max-width:380px;margin:80px auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:28px;box-shadow:0 4px 16px rgba(11,61,145,.08);}
+  .gate h2{margin:0 0 14px;color:var(--navy);font-size:18px;}
+  input[type=password]{width:100%;padding:11px 13px;border:1px solid #cfd6e0;border-radius:8px;font-size:15px;font-family:inherit;}
+  .btn{display:inline-flex;align-items:center;gap:8px;border:none;border-radius:8px;padding:10px 16px;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit;}
+  .btn--navy{background:var(--navy);color:#fff;}
+  .btn--gold{background:var(--gold);color:#1a1500;}
+  .btn--ghost{background:#fff;color:var(--navy);border:1px solid #cdd6e6;}
+  .err{color:var(--red);font-size:13px;margin-top:10px;font-weight:600;min-height:18px;}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 22px;min-width:130px;box-shadow:0 4px 16px rgba(11,61,145,.06);}
+  .stat .n{font-size:28px;font-weight:900;color:var(--navy);line-height:1;}
+  .stat.paid .n{color:#1b7a3d;} .stat.pending .n{color:#b56a00;}
+  .stat .l{font-size:12.5px;color:var(--muted);margin-top:6px;}
+  .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+  .table-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;overflow:auto;box-shadow:0 4px 16px rgba(11,61,145,.06);}
+  table{border-collapse:collapse;width:100%;font-size:13px;min-width:900px;}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:top;}
+  th{background:#f2f6fd;color:var(--navy);font-weight:700;position:sticky;top:0;}
+  td.wrap-cell{white-space:normal;max-width:240px;}
+  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:800;}
+  .badge.paid{background:#e4f5ea;color:#1b7a3d;} .badge.pending{background:#fdeede;color:#b56a00;}
+  code{background:#fff4d6;border:1px solid #f0dca0;border-radius:5px;padding:1px 6px;font-size:11.5px;}
+  .muted{color:var(--muted);}
+</style>
+</head>
+<body>
+<div id="gate" class="gate">
+  <h2>🔒 Đăng nhập quản trị</h2>
+  <input type="password" id="token" placeholder="Mã quản trị (ADMIN_TOKEN)" autocomplete="current-password" />
+  <div class="err" id="gate-err"></div>
+  <button class="btn btn--navy" id="login" style="width:100%;margin-top:12px;justify-content:center">Đăng nhập</button>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <h1>📋 Quản lý đăng ký — Khóa Sơ cấp cứu Cộng đồng</h1>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn--gold" id="export">⬇ Xuất Excel (CSV)</button>
+      <button class="btn btn--ghost" id="refresh">↻ Tải lại</button>
+      <button class="btn btn--ghost" id="logout">Đăng xuất</button>
+    </div>
+  </header>
+  <div class="wrap">
+    <div class="stats" id="stats"></div>
+    <div class="toolbar">
+      <strong>Danh sách đăng ký</strong>
+      <span class="muted" id="count"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="table">
+        <thead><tr>
+          <th>ID</th><th>Thời gian</th><th>Mã lớp</th><th>Họ và tên</th><th>Ngày sinh</th>
+          <th>SĐT</th><th>Email</th><th>Đơn vị</th><th>GCN tên ĐV</th>
+          <th>Nội dung CK</th><th>Trạng thái</th><th>Ghi chú</th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  var TOKEN = sessionStorage.getItem('ttcc-admin') || '';
+  var gate = document.getElementById('gate'), app = document.getElementById('app');
+
+  function api(path){
+    return fetch(path, { headers: { Authorization: 'Bearer ' + TOKEN } });
+  }
+  function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];}); }
+
+  function showApp(){ gate.style.display='none'; app.style.display='block'; load(); }
+  function showGate(msg){ app.style.display='none'; gate.style.display='block'; if(msg) document.getElementById('gate-err').textContent = msg; }
+
+  function login(){
+    TOKEN = document.getElementById('token').value.trim();
+    if(!TOKEN){ document.getElementById('gate-err').textContent='Vui lòng nhập mã.'; return; }
+    api('/api/admin/stats').then(function(r){
+      if(r.status===401){ document.getElementById('gate-err').textContent='Mã không đúng.'; return; }
+      sessionStorage.setItem('ttcc-admin', TOKEN); showApp();
+    }).catch(function(){ document.getElementById('gate-err').textContent='Lỗi kết nối.'; });
+  }
+  document.getElementById('login').addEventListener('click', login);
+  document.getElementById('token').addEventListener('keydown', function(e){ if(e.key==='Enter') login(); });
+  document.getElementById('logout').addEventListener('click', function(){ sessionStorage.removeItem('ttcc-admin'); TOKEN=''; showGate(); });
+  document.getElementById('refresh').addEventListener('click', load);
+  document.getElementById('export').addEventListener('click', function(){
+    // token in query so the browser can download directly
+    window.location = '/api/admin/export.csv?token=' + encodeURIComponent(TOKEN);
+  });
+
+  function load(){
+    api('/api/admin/stats').then(function(r){ return r.json(); }).then(function(d){
+      if(!d.ok) return;
+      var s = d.stats || {};
+      document.getElementById('stats').innerHTML =
+        '<div class="stat"><div class="n">'+(s.total||0)+'</div><div class="l">Tổng đăng ký</div></div>'+
+        '<div class="stat paid"><div class="n">'+(s.paid||0)+'</div><div class="l">Đã thanh toán</div></div>'+
+        '<div class="stat pending"><div class="n">'+(s.pending||0)+'</div><div class="l">Chờ thanh toán</div></div>';
+    });
+    api('/api/admin/registrations').then(function(r){
+      if(r.status===401){ showGate('Phiên đăng nhập hết hạn.'); return null; }
+      return r.json();
+    }).then(function(d){
+      if(!d || !d.ok) return;
+      var rows = d.registrations || [];
+      document.getElementById('count').textContent = '(' + rows.length + ' bản ghi)';
+      document.getElementById('rows').innerHTML = rows.map(function(r){
+        var st = r.status==='paid'
+          ? '<span class="badge paid">Đã thanh toán</span>'
+          : '<span class="badge pending">Chờ thanh toán</span>';
+        var t = r.created_at ? new Date(r.created_at).toLocaleString('vi-VN') : '';
+        return '<tr>'+
+          '<td>'+r.id+'</td>'+
+          '<td>'+esc(t)+'</td>'+
+          '<td><strong>'+esc(r.class_code)+'</strong></td>'+
+          '<td>'+esc(r.full_name)+'</td>'+
+          '<td>'+esc(r.dob||'')+'</td>'+
+          '<td>'+esc(r.phone)+'</td>'+
+          '<td>'+esc(r.email||'')+'</td>'+
+          '<td class="wrap-cell">'+esc(r.organization||'')+'</td>'+
+          '<td>'+esc(r.cert_org_name||'')+'</td>'+
+          '<td><code>'+esc(r.reference)+'</code></td>'+
+          '<td>'+st+'</td>'+
+          '<td class="wrap-cell">'+esc(r.note||'')+'</td>'+
+        '</tr>';
+      }).join('') || '<tr><td colspan="12" class="muted" style="text-align:center;padding:30px">Chưa có đăng ký nào.</td></tr>';
+    });
+  }
+
+  if(TOKEN) showApp(); else showGate();
+</script>
+</body>
+</html>
