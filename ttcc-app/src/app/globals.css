@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  /* Medical Blue Palette based on 115 Logo */
+  --color-brand-50: #f0f7ff;
+  --color-brand-100: #e0effe;
+  --color-brand-500: #3b82f6; /* Classic Medical Blue */
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
+  --color-brand-900: #1e3a8a;
+  
+  --color-accent: #e11d48; /* Medical Red / Rose 600 */
+  
+  --color-background: #f8fafc; /* Very light slate/white */
+  --color-foreground: #0f172a; /* Slate 900 for text */
+  
+  --color-surface: #ffffff; /* White cards */
+  --color-surface-hover: #f1f5f9; /* Slate 100 */
+  
+  --color-border: #e2e8f0; /* Slate 200 */
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Utilities for Premium Light Glassmorphism */
+@utility glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 1);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+@utility glass-card {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 1) 0%, rgba(248, 250, 252, 0.9) 100%);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+}
+
+@utility text-gradient {
+  background: linear-gradient(to right, var(--color-brand-600), var(--color-brand-900));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
