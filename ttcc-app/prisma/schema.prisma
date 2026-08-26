@@ -4,6 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -26,6 +27,20 @@ model Setting {
   updatedAt          DateTime @updatedAt
 }
 
+enum CourseType {
+  COMMUNITY_FIRST_AID
+  CME_ABCDE
+  AMBULANCE_DRIVER
+  CPR_ADVANCED
+  CPR_BASIC
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum ClassStatus {
   OPEN
   FULL
@@ -34,6 +49,7 @@ enum ClassStatus {
 
 model Class {
   id            String         @id @default(uuid())
+  courseType    CourseType     @default(COMMUNITY_FIRST_AID)
   code          String         @unique
   name          String
   date          DateTime
@@ -53,20 +69,28 @@ enum PaymentStatus {
 }
 
 model Registration {
-  id             String        @id @default(uuid())
-  classId        String
-  class          Class         @relation(fields: [classId], references: [id])
-  fullName       String
-  dob            DateTime
-  phone          String
-  email          String?
-  organization   String?
-  printOrgOnCert Boolean       @default(false)
-  note           String?
-  paymentStatus  PaymentStatus @default(PENDING)
-  source         String?
-  sessionId      String?
-  createdAt      DateTime      @default(now())
+  id                String             @id @default(uuid())
+  classId           String
+  class             Class              @relation(fields: [classId], references: [id])
+  fullName          String
+  dob               DateTime
+  phone             String
+  email             String?
+  organization      String?
+  printOrgOnCert    Boolean            @default(false)
+  cccd              String?            // CME required
+  workplace         String?            // CME required
+  idPhotoUrl        String?            // Upload path for CCCD/ID
+  degreeUrl         String?            // Upload path for professional degree
+  paymentReceiptUrl String?            // Upload path for transfer receipt
+  note              String?
+  paymentStatus     PaymentStatus      @default(PENDING)
+  status            RegistrationStatus @default(PENDING)
+  invoiceCode       String?            // HĐĐT tracking code
+  certificateCode   String?            // CME certificate number
+  source            String?
+  sessionId         String?
+  createdAt         DateTime           @default(now())
 }
 
 model TrackingEvent {

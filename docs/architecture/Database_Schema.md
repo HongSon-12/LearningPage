@@ -5,19 +5,25 @@ Tài liệu này mô tả cấu trúc CSDL của ứng dụng cốt lõi (Core S
 ## 1. Các Enum (Danh mục trạng thái và Phân loại)
 
 ### `CourseType`
-Dùng để phân loại các khóa học, từ đó giúp Frontend biết hiển thị mẫu Form đăng ký nào và yêu cầu những giấy tờ gì.
-- `COMMUNITY_FIRST_AID`: Sơ cấp cứu cộng đồng.
-- `CME_ABCDE`: Cấp cứu ban đầu ngoài bệnh viện - Xử trí bệnh cấp cứu và chấn thương – ABCDE.
-- `AMBULANCE_DRIVER`: Sơ cấp cứu ban đầu dành cho lái xe vận chuyển cấp cứu.
-- `CPR_ADVANCED`: Hồi sinh tim phổi nâng cao.
-- `CPR_BASIC`: Hồi sinh tim phổi cơ bản.
-*(Có thể mở rộng thêm vô hạn khóa học trong tương lai).*
+Dùng để phân loại các khóa học.
+- `COMMUNITY_FIRST_AID`, `CME_ABCDE`, `AMBULANCE_DRIVER`, `CPR_ADVANCED`, `CPR_BASIC`
+
+### `TargetAudience`
+Đối tượng mục tiêu của khóa học (Được phép chọn nhiều cho 1 lớp).
+- `DOCTOR` (Bác sĩ), `NURSE` (Điều dưỡng), `PHYSICIAN` (Y sĩ), `DRIVER` (Nhân viên lái xe), `COMMUNITY` (Cộng đồng).
+
+### `CertificateType`
+Loại chứng chỉ được cấp.
+- `CERTIFICATE` (Giấy chứng nhận).
+- `CONFIRMATION` (Giấy xác nhận).
+
+### `Gender`
+Giới tính học viên.
+- `MALE`, `FEMALE`, `OTHER`
 
 ### `RegistrationStatus`
 Trạng thái kiểm duyệt hồ sơ đăng ký của học viên.
-- `PENDING`: Đang chờ duyệt (Mặc định).
-- `APPROVED`: Đã duyệt (Kích hoạt luồng gửi Mail Xác nhận đăng ký chính thức).
-- `REJECTED`: Từ chối hồ sơ (Do giấy tờ sai sót hoặc thiếu).
+- `PENDING` (Chờ duyệt), `APPROVED` (Đã duyệt), `REJECTED` (Từ chối).
 
 ### `PaymentStatus`
 Trạng thái thanh toán học phí.
@@ -34,35 +40,47 @@ Trạng thái của một lớp học.
 ### Bảng `Class` (Quản lý Lớp học)
 Mỗi dòng đại diện cho một lịch khai giảng cụ thể của một khóa học.
 - `id`: Định danh duy nhất (UUID).
-- `courseType`: Phân loại khóa học (Liên kết với Enum `CourseType`).
+- `courseType`: Phân loại khóa học.
 - `code`: Mã lớp (VD: SCC-01, CME-10).
-- `name`: Tên lớp (Hiển thị cho học viên).
-- `date`, `startTime`, `endTime`: Lịch học.
-- `capacity`: Số lượng học viên tối đa (Khi đạt mức này, tự động kích hoạt đẩy sang Form Đăng Ký Vét).
+- `name`: Tên lớp.
+- `courseBatch`: Khóa.
+- `capacity`: Số lượng học viên tối đa.
+- `fee`: Học phí.
+- `location`: Địa điểm học.
+- `startDate`: Thời gian học (Từ ngày).
+- `endDate`: Thời gian học (Đến ngày).
+- `registrationDeadline`: Hạn đăng ký.
+- `totalLessons`: Tổng số tiết.
+- `targetAudiences`: Đối tượng đăng ký (Mảng các `TargetAudience`).
+- `certificateType`: Loại chứng chỉ (`CertificateType`).
 - `status`: Trạng thái lớp (`ClassStatus`).
 
 ### Bảng `Registration` (Hồ sơ Học viên)
-Đây là "trái tim" của hệ thống, nơi lưu trữ mọi thông tin xuyên suốt từ lúc khách mới điền Form cho đến khi nhận Chứng chỉ.
+Nơi lưu trữ mọi thông tin xuyên suốt từ lúc khách mới điền Form cho đến khi nhận Chứng chỉ.
 **Thông tin cá nhân cơ bản:**
 - `id`, `classId` (Khóa ngoại trỏ về `Class`).
-- `fullName`, `dob` (Ngày sinh), `phone`, `email`.
+- `fullName`: Họ và tên.
+- `dob`: Ngày tháng năm sinh.
+- `gender`: Giới tính.
+- `phone`: Số điện thoại.
+- `email`: Email.
 
-**Thông tin Hồ sơ (Đặc thù CME):**
-- `cccd`: Số Căn cước công dân.
-- `workplace`: Đơn vị công tác / Nơi làm việc.
+**Thông tin Hồ sơ:**
+- `cccd`: Số căn cước.
+- `workplace`: Đơn vị công tác (Nếu có).
 - `organization`: Tổ chức cử đi học (Nếu có).
-- `printOrgOnCert`: Cờ đánh dấu có in tên tổ chức lên chứng chỉ không.
+- `printOrgOnCert`: Có in tên tổ chức lên chứng chỉ không.
 
 **Lưu trữ File Chứng từ (Dạng Link tĩnh - Uploads):**
-- `idPhotoUrl`: Đường dẫn ảnh chụp CCCD.
-- `degreeUrl`: Đường dẫn ảnh chụp Bằng cấp chuyên môn (Y tế, Lái xe...).
-- `paymentReceiptUrl`: Đường dẫn ảnh chụp Biên lai thanh toán học phí.
+- `idPhotoUrl`: Đính kèm Căn cước công dân.
+- `degreeUrl`: Đính kèm Văn bằng chuyên môn.
+- `paymentReceiptUrl`: Ảnh đã chuyển khoản.
 
 **Thông tin Kiểm duyệt & Hậu kỳ:**
 - `status`: Trạng thái duyệt hồ sơ (`RegistrationStatus`).
 - `paymentStatus`: Trạng thái tiền (`PaymentStatus`).
-- `invoiceCode`: Mã tra cứu Hóa đơn điện tử (Admin cập nhật sau khi học xong).
-- `certificateCode`: Số Chứng chỉ / Số hiệu bằng cấp (Admin cập nhật).
+- `invoiceCode`: Mã tra cứu Hóa đơn điện tử.
+- `certificateCode`: Số Chứng chỉ.
 
 **Tracking & Marketing:**
 - `source`: Nguồn khách (Từ Zalo, Facebook, Direct...).
@@ -80,6 +98,3 @@ Mỗi dòng đại diện cho một lịch khai giảng cụ thể của một k
 
 ### Bảng `TrackingEvent`
 - Lưu trữ lịch sử click/truy cập của khách hàng từ các nhánh quảng bá vệ tinh đổ về, giúp đo đạc hiệu quả Marketing. Gồm `sessionId`, `eventName`, `source`.
-
----
-*Cấu trúc này đảm bảo tính "Mở" hoàn toàn. Các Landing Page vệ tinh chỉ cần lấy danh sách `Class` từ hệ thống này qua API (hoặc Link) để hiển thị, và khi khách hàng điền form, hệ thống sẽ linh hoạt lưu dữ liệu dựa vào `courseType`.*
