@@ -1,0 +1,10 @@
+.git
+.env*
+node_modules
+.next
+.next-build
+.local
+public/uploads
+harness
+test-results
+playwright-report

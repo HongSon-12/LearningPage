@@ -10,46 +10,48 @@
 
 ## Phase 0 - Baseline
 
-- [ ] Khôi phục PostgreSQL đúng môi trường.
-- [ ] Kiểm tra migration.
-- [ ] Inventory package/UI/auth.
-- [ ] TypeScript/lint/build/test.
-- [ ] Smoke routes.
-- [ ] Xác định baseline commit/tag.
-- [ ] Ghi build log.
+- [x] Khôi phục PostgreSQL đúng môi trường.
+- [x] Kiểm tra migration.
+- [x] Inventory package/UI/auth.
+- [x] TypeScript/lint/build/test.
+- [x] Smoke routes.
+- [x] Xác định baseline commit/tag.
+- [x] Ghi build log.
 
 **Exit:** baseline xanh hoặc blocker được phân loại.
 
 ## Phase 1 - shadcn foundation
 
-- [ ] Kiểm tra Tailwind/PostCSS/components config.
-- [ ] Init/đồng bộ shadcn.
-- [ ] Thêm `@tanstack/react-table`, `react-hook-form`, `zod`, `@hookform/resolvers` nếu thiếu.
-- [ ] Sonner.
-- [ ] Design tokens.
-- [ ] AdminShell/Sidebar/Header.
-- [ ] StatusBadge/FilterBar/DataTable.
-- [ ] Shared forms.
-- [ ] Refactor `/login`, `/courses`, `/courses/[classId]`.
-- [ ] Desktop/mobile/a11y.
-- [ ] Ghi dependency mới.
+- [x] Kiểm tra Tailwind/PostCSS/components config.
+- [x] Init/đồng bộ shadcn.
+- [x] Thêm `@tanstack/react-table`, `react-hook-form`, `zod`, `@hookform/resolvers` nếu thiếu.
+- [x] Sonner.
+- [x] Design tokens.
+- [x] AdminShell/Sidebar/Header.
+- [x] StatusBadge/FilterBar/DataTable.
+- [x] Shared forms.
+- [x] Refactor `/login`, `/courses`, `/courses/[classId]`.
+- [x] Desktop/mobile/keyboard cơ bản: 5 viewport, focus và screenshot; UAT nghiệp vụ/screen reader đầy đủ còn ở release.
+- [x] Ghi dependency mới.
 
 **Không đổi business logic.**
 
 ## Phase 2 - Security hardening
 
-- [ ] Private storage.
-- [ ] File authz.
-- [ ] Extension/MIME/magic bytes/size.
-- [ ] Migrate file references nếu cần.
-- [ ] Search chống enumeration.
-- [ ] Audit export/download.
-- [ ] Rate limit.
-- [ ] CSP/security headers.
+- [x] Private storage.
+- [x] File authz.
+- [x] Extension/MIME/magic bytes/size.
+- [x] Migrate file references nếu cần.
+- [x] Search chống enumeration.
+- [x] Audit export/download.
+- [x] Rate limit.
+- [x] CSP/security headers (CSP report-only; HTTPS/HSTS ở phase vận hành).
+
+Hoàn thành triển khai và cutover local ngày 17/10/2026. Container đang chạy chưa được deploy lại; SMTP thật, retention, scan và production release còn là gate riêng. Xem `harness/context/phase-02-security-files-search-context.md`.
 
 ## Phase 3 - Email reliability
 
-- [ ] EmailOutbox.
+- [ ] EmailOutbox đầy đủ cho email nghiệp vụ (đã có tối thiểu cho SEARCH_OTP ở phase 2).
 - [ ] Templates.
 - [ ] Worker/cron.
 - [ ] Retry/idempotency.
@@ -124,6 +126,10 @@ Không thêm cache/package chỉ vì cảm tính.
 - [ ] email reject/manual/late;
 - [ ] GCN logistics;
 - [ ] multi-role;
-- [ ] public search UX;
+- [x] public search UX: CCCD -> mã xác thực email -> lịch sử học từ hồ sơ Student (ADR-019, 17/10/2026);
 - [ ] SSO revoke SLA;
 - [ ] break-glass account.
+
+
+### Điều chỉnh theo người dùng — hồ sơ học viên/OTP
+Đã thêm Student và liên kết nhiều lần Registration; admin đối chiếu hồ sơ trong `/students`, quản lý xem theo lớp. Tra cứu hiện dùng CCCD/mã email, không còn yêu cầu mã đăng ký/email để nhận link. OTP và lịch sử chỉ mở sau xác thực; hồ sơ/lần đăng ký mâu thuẫn được giữ để đối chiếu. Xem ADR-019 và context phase02b. SMTP thật, lịch worker, dữ liệu cần đối chiếu và rollout vẫn cần xử lý.

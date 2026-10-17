@@ -126,6 +126,7 @@ model Class {
   status               ClassStatus       @default(OPEN)
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
+  sessions             ClassSession[]
   registrations        Registration[]
   managerId            String?
   manager              User? @relation("ClassManager", fields: [managerId], references: [id])
@@ -139,6 +140,9 @@ enum PaymentStatus {
 
 model Registration {
   id                String             @id @default(uuid())
+  studentId         String?
+  student           Student? @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  profileReviewRequired Boolean @default(false)
   classId           String
   class             Class              @relation(fields: [classId], references: [id])
   fullName          String
@@ -166,11 +170,23 @@ model Registration {
   confirmationNumber String?
   certificateDeliveredDirect Boolean @default(false)
   certificateSentByPost Boolean @default(false)
+  idPhotoFileId String? @unique
+  idPhotoFile StoredFile? @relation("IdentityFile", fields: [idPhotoFileId], references: [id])
+  degreeFileId String? @unique
+  degreeFile StoredFile? @relation("DegreeFile", fields: [degreeFileId], references: [id])
+  paymentReceiptFileId String? @unique
+  paymentReceiptFile StoredFile? @relation("ReceiptFile", fields: [paymentReceiptFileId], references: [id])
+  storedFiles StoredFile[] @relation("OwnedFiles")
+  attendance Attendance[]
+  searchTokens SearchToken[]
+  emailJobs EmailOutbox[]
   events RegistrationEvent[]
   source            String?
   sessionId         String?
   createdAt         DateTime           @default(now())
   @@index([classId, status, paymentStatus])
+  @@index([cccd, createdAt])
+  @@index([studentId, createdAt])
 }
 
 model TrackingEvent {
@@ -182,4 +198,150 @@ model TrackingEvent {
 
   @@index([sessionId])
   @@index([eventName])
+}
+
+
+enum FileKind {
+  ID_PHOTO
+  DEGREE
+  RECEIPT
+}
+
+model StoredFile {
+  id String @id @default(uuid())
+  storageKey String @unique
+  kind FileKind
+  mime String
+  size Int
+  sha256 String
+  scanStatus String @default("UNVERIFIED")
+  classId String
+  uploadedById String?
+  ownerTokenHash String?
+  registrationId String?
+  registration Registration? @relation("OwnedFiles", fields: [registrationId], references: [id], onDelete: SetNull)
+  identityFor Registration? @relation("IdentityFile")
+  degreeFor Registration? @relation("DegreeFile")
+  receiptFor Registration? @relation("ReceiptFile")
+  createdAt DateTime @default(now())
+  @@index([registrationId])
+  @@index([ownerTokenHash, createdAt])
+  @@index([uploadedById, createdAt])
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+  actorId String?
+  action String
+  resourceId String?
+  result String
+  createdAt DateTime @default(now())
+  @@index([action, createdAt])
+}
+
+model RateLimit {
+  key String @id
+  count Int @default(1)
+  expiresAt DateTime
+  @@index([expiresAt])
+}
+
+model SearchToken {
+  tokenHash String @id
+  registrationId String
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  jobId String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  @@index([expiresAt])
+}
+
+model EmailOutbox {
+  id String @id @default(uuid())
+  type String @default("SEARCH_OTP")
+  challengeId String? @unique
+  challenge LookupChallenge? @relation(fields: [challengeId], references: [id], onDelete: SetNull)
+  registrationId String?
+  registration Registration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  studentId String?
+  student Student? @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  recipient String
+  idempotencyKey String @unique
+  status String @default("PENDING")
+  attemptCount Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  leaseId String?
+  leaseUntil DateTime?
+  lastErrorCode String?
+  createdAt DateTime @default(now())
+  sentAt DateTime?
+  @@index([status, nextAttemptAt])
+}
+
+
+model LookupChallenge {
+  id String @id @default(uuid())
+  studentId String
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  identityHash String
+  emailHash String
+  codeHash String?
+  expiresAt DateTime?
+  failedAttempts Int @default(0)
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  emailJob EmailOutbox?
+  @@index([identityHash, createdAt])
+}
+
+model Student {
+  id String @id @default(uuid())
+  cccd String? @unique
+  fullName String
+  dob DateTime
+  phone String
+  email String?
+  needsReview Boolean @default(true)
+  registrations Registration[]
+  lookupChallenges LookupChallenge[]
+  emailJobs EmailOutbox[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([fullName, id])
+}
+
+model ClassSession {
+  id String @id @default(uuid())
+  classId String
+  class Class @relation(fields: [classId], references: [id], onDelete: Restrict)
+  title String
+  startsAt DateTime
+  endsAt DateTime
+  location String @default("")
+  closed Boolean @default(false)
+  createdById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  attendance Attendance[]
+  @@unique([classId, startsAt])
+}
+
+enum AttendanceMethod {
+  QR
+  MANUAL
+}
+
+model Attendance {
+  id String @id @default(uuid())
+  sessionId String
+  session ClassSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  registrationId String
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  present Boolean @default(true)
+  method AttendanceMethod
+  recordedById String
+  recordedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([sessionId, registrationId])
+  @@index([registrationId])
 }

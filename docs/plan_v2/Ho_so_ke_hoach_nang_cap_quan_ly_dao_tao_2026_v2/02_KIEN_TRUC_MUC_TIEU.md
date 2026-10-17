@@ -246,3 +246,7 @@ Không cache công khai:
 - kết quả search cá nhân.
 
 Sĩ số public có thể hiển thị cache ngắn/refresh định kỳ, nhưng server luôn quyết định khi ghi nhận chỗ.
+
+
+## Điều chỉnh dữ liệu học viên —17/10/2026 (ADR-019)
+Student là hồ sơ định danh/liên hệ dùng chung. Registration là từng lần đăng ký với snapshot, lớp, thanh toán, chứng từ, event và file hiện có. Quan hệ Student 1–n Registration, CCCD hợp lệ unique tại Student; invalid legacy IDs giữ riêng để đối chiếu. LookupChallenge và SEARCH_OTP outbox gắn Student. Profile contact không bị public signup/Excel tự ghi đè; admin xác nhận thay đổi và thu hồi OTP. Không dùng một Registration làm đại diện tùy tiện cho email toàn bộ lịch sử.

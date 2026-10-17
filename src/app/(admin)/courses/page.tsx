@@ -1,25 +1,30 @@
+import dynamicImport from "next/dynamic";
+import TableLoading from "@/components/admin/table-loading";
+import { BookOpen } from "lucide-react";
 import { pageUser } from "@/lib/auth";
-import React from "react";
 import { getClasses } from "@/app/actions/class";
-import ClassList from "./ClassList";
-
+import { PageHeader } from "../components/AdminUI";
+const ClassList = dynamicImport(() => import("./ClassList"), {
+  loading: () => <TableLoading />,
+});
 export const dynamic = "force-dynamic";
-
 export default async function AdminCoursesPage() {
-  const actor=await pageUser();
+  const actor = await pageUser();
   const result = await getClasses();
-  
-  if (!result.success || !result.data) {
-    return <div className="text-red-500">Lỗi tải dữ liệu. Vui lòng thử lại sau.</div>;
-  }
-
+  if (!result.success || !result.data)
+    throw new Error("Không thể tải danh sách lớp.");
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">Quản lý Khóa học</h1>
-      </div>
-
-      <ClassList initialClasses={result.data} canCreate={actor.role === "ADMIN"} canEdit={actor.role !== "ACCOUNTANT"} />
+    <div className="w-full min-w-0 space-y-4">
+      <PageHeader
+        title="Quản lý Khóa học"
+        description="Theo dõi lịch học, sĩ số và hồ sơ học viên của từng lớp."
+        icon={BookOpen}
+      />
+      <ClassList
+        initialClasses={result.data}
+        canCreate={actor.role === "ADMIN"}
+        canEdit={actor.role !== "ACCOUNTANT"}
+      />
     </div>
   );
 }

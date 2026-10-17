@@ -1,0 +1,3 @@
+# Synthetic CCCD QR fixture
+
+synthetic-cccd-qr.png encodes only invented test values: `001234567890||Synthetic Person|01011990|Nam|Synthetic address|01012020`. It is not a photo of an actual identity card. Generated with the MIT-licensed official node-qrcode CLI: `pnpm dlx qrcode@1.5.4 --type png --width 600 --margin 4 --output tests/fixtures/synthetic-cccd-qr.png "001234567890||Synthetic Person|01011990|Nam|Synthetic address|01012020"`. No CLI runtime dependency is retained. Browser tests feed the PNG through a canvas MediaStream into the real jsQR decoder and verify raw personal QR fields are not sent to the server.

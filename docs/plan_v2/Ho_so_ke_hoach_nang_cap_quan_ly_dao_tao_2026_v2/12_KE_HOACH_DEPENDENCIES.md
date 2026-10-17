@@ -222,3 +222,40 @@ Ngoài ra:
 - [ ] Lockfile được lưu.
 - [ ] Typecheck/build/test đạt sau nhóm package.
 - [ ] Package ngoài baseline có lý do trong log.
+
+## 13. Dependency thực tế sau Phase 1 — 17/10/2026
+
+| Package | Version | Mục đích / phạm vi |
+|---|---|---|
+| @tanstack/react-table | 9.3.1 | Native useTable; chỉ sorting/pagination/columnVisibility features |
+| react-hook-form | 7.90.0 | Login và form lớp |
+| zod | 4.6.7 | Client form validation; server vẫn kiểm tra như baseline |
+| @hookform/resolvers | 5.9.1 | RHF/Zod4 |
+| sonner | 2.0.8 | Toast admin |
+| radix-ui | 1.8.1 | Primitive của các component shadcn được dùng |
+| cn | 0.4.0 | Utility generator sử dụng, export qua src/lib/utils.ts |
+| class-variance-authority | 0.7.1 | Component variants |
+| tw-animate-css | 1.4.0 | Animation overlay |
+| @playwright/test | 1.64.1 (dev) | Browser regression; không vào runtime/client bundle |
+
+Generator: shadcn 4.22.0 qua dlx. Formatter: Prettier 3.6.2 qua dlx. Không thêm hai CLI này vào runtime dependencies. Không cần next-themes vì chỉ triển khai light theme; Sonner wrapper dùng theme light.
+
+Npm metadata và peer/engine/license đã kiểm tra. cn/Radix/TanStack/RHF/Zod/resolver/Sonner/tw-animate-css dùng MIT; CVA và Playwright dùng Apache-2.0. Node22/React19 đáp ứng engine/peers. Next/React/Prisma giữ nguyên phiên bản. Không giữ exception mới trong pnpm-workspace.yaml.
+
+Quyết định chọn native TanStack9 sau discovery được ghi ở ADR-015. Giữ lockfile. Rollback bằng diff phase1 của package/lockfile cùng source UI; không có schema migration. Kết quả test ở harness/build-log.md.
+
+
+## 14. Điểm danh — 17/10/2026
+
+`jsqr@1.4.0` (Apache-2.0) là dependency runtime duy nhất được thêm cho điểm danh. Không runtime dependency con, không React/Next peer constraint. Decode QR trong browser bằng canvas; dynamic import sau khi bấm mở camera. Không đưa vào các trang quản trị khác hoặc gọi dịch vụ ngoài. Upstream ít hoạt động là rủi ro bảo trì; khóa version và cô lập trong `src/components/attendance/qr-camera.tsx`, có tìm thủ công để dự phòng. Rollback bỏ component/import/package/lockfile change, giữ dữ liệu điểm danh và chức năng tìm tay.
+
+Bộ thử dùng QR PNG tổng hợp do `pnpm dlx qrcode@1.5.4` (MIT) sinh một lần; không cài qrcode vào app. Kiểm thử chạy bộ jsQR thật trên MediaStream từ canvas; có từ chối quyền, trả quyền trễ, tự dừng track và không gửi payload riêng tư lên server. Đã kiểm tra Next16.3/React19.2/Node22, type/lint/build. Nguồn chính thức: https://github.com/cozmo/jsQR ; https://github.com/soldair/node-qrcode .
+
+
+## 15. Lịch và bộ chọn — 17/10/2026
+
+Thêm direct dependency `@daypicker/react@10.0.2` (MIT), namespace chính thức hiện tại của React DayPicker; package này hiện trỏ tới `react-day-picker@10.0.2`, dùng nội bộ date-fns4 và @date-fns/tz1 (MIT). Tổng4 package mới trong lockfile. Dự án trước đó chưa có thư viện lịch; không nâng major thư viện/framework hiện có. React>=16.8 hỗ trợ React19 đang dùng, không thêm framework UI/form/state khác. Select/Popover dùng radix-ui1.8.1 đã có.
+
+Mục đích: lịch có locale Việt, grid/keyboard/navigation đã có sẵn để thay popup native không style được. Chỉ import locale vi. Parser ISO/hiển thị giờ dùng helper nhỏ của app; không thêm date-fns làm direct dependency. Thư viện nằm trong client controls của các màn hình dùng lịch; không gọi dịch vụ ngoài. Chunk liên quan lịch khoảng155KB minified/~48KB gzip (đo build, không phải tổng bundle của trang).
+
+Rollback chỉ source/component/dependency và các hunk lockfile thuộc phase02d, giữ công việc các phase trước; không có migration hoặc thao tác dữ liệu. Verification: type/lint/build,20 Playwright và test:date-time, gồm Bangkok/UTC+14, lưu FormData/RHF thực tế, popup trong dialog, label/keyboard/mobile. Nguồn: https://daypicker.dev/ ; https://daypicker.dev/docs/styling ; https://www.radix-ui.com/primitives/docs/components/select ; https://ui.shadcn.com/docs/components/radix/date-picker .

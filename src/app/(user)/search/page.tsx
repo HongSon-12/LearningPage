@@ -2,8 +2,11 @@ import React from "react";
 import SearchClient from "./SearchClient";
 
 export const metadata = {
-  title: "Tra cứu chứng chỉ - TTCC115",
-  description: "Tra cứu thông tin khóa học, hóa đơn và chứng chỉ của bạn tại Trung tâm Cấp cứu 115",
+  robots: { index: false, follow: false },
+  referrer: "no-referrer",
+  title: "Tra cứu lịch sử học - TTCC115",
+  description:
+    "Xác thực email để xem hồ sơ và lịch sử học tại Trung tâm Cấp cứu 115",
 };
 
 export default function SearchPage() {
@@ -14,7 +17,8 @@ export default function SearchPage() {
           Tra cứu <span className="text-gradient">Hồ sơ & Chứng chỉ</span>
         </h1>
         <p className="text-gray-600 text-lg font-medium">
-          Nhập số điện thoại, số CCCD, Mã HĐĐT hoặc Số chứng chỉ để kiểm tra tình trạng hồ sơ của bạn.
+          Nhập số căn cước công dân, xác thực bằng mã gửi đến email trong hồ sơ
+          học viên để xem lịch sử học.
         </p>
       </div>
 

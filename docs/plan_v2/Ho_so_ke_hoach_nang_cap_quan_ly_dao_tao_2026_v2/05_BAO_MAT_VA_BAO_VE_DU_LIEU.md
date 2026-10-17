@@ -208,3 +208,11 @@ Không tự triển khai crypto nếu chưa có quy trình quản lý key.
 - session fixation/replay test;
 - SSO issuer/audience/state/PKCE/logout test;
 - backup chứa PII phải được bảo vệ tương đương production DB.
+
+
+## Cập nhật triển khai local —17/10/2026
+Private files/FK/authorization/audit/body limits/rate/security headers đã triển khai và giữ nguyên. 4liên kết hồ sơ cũ đã chuyển; 6 file gốc giữ trong backup/quarantine.
+
+Người dùng đổi quyết định sang **CCCD → mã xác thực email → lịch sử học**, đồng thời yêu cầu hồ sơ học viên dùng chung. Student có một email tra cứu; nhiều Registration giữ snapshot/lịch sử. Không chọn email mới nhất tùy tiện, không để đăng ký mới ghi đè hồ sơ. Hồ sơ cũ không nhất quán cần admin đối chiếu; registration chưa khớp hồ sơ không được trả trong public history hoặc tổng số. Manager chỉ xem lớp được giao; accountant có CCCD masked.
+
+OTP 6 chữ số, 10 phút, một lần, 5 lần sai, cooldown 60 giây; HMAC với key runtime, không raw code/CCCD trong URL/log/outbox. SEARCH_OTP worker có lease/retry; old link jobs/tokens bị vô hiệu hóa. Email đăng ký vẫn tùy chọn. SMTP thật/lịch worker, retention, scan/TLS/HSTS/CSP enforcement và production rollout vẫn là gate. Xem ADR-019 và `harness/context/phase-02b-student-profiles-otp-context.md`. Tài liệu phương án link ở trên là lịch sử đề xuất, không phải luồng hiện tại.

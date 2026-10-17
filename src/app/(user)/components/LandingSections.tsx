@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, HeartPulse, Clock, Users, Award, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence, type Variants } from "framer-motion";
+import { CheckCircle2, Award } from "lucide-react";
 import Link from "next/link";
 import { trackEvent } from "@/app/actions/tracking";
 
@@ -13,7 +13,7 @@ const heroImages = [
   "/Picture/p3-cprclass-ml0225-gi1405064013.jpg"
 ];
 
-const fadeInUp: any = {
+const fadeInUp: Variants = {
   hidden: { opacity: 0, y: 30 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
 };
@@ -38,7 +38,7 @@ export default function LandingSections() {
       if (sessionId) {
         trackEvent(sessionId, source, eventName);
       }
-    } catch (error) {
+    } catch {
       // Ignore if sessionStorage is not available
     }
   };

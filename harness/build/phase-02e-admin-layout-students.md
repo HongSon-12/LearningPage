@@ -1,0 +1,22 @@
+# Phase02e — Admin space/title and student dossier usability
+
+User17/10/2026: all pages have too much empty space; check fixed limits, replace generic Hệ thống Quản trị banner with page title, reconsider duplicate title layout, improve student dossiers.
+
+Discovery: AdminShell caps1600px plus page caps1280/1024/1152, centered wrappers and32px desktop padding;80px global banner duplicates breadcrumb + large icon/title block. Student directory is wide cards without search/filter; detail is a narrow vertical form/history.
+
+Implement fluid shared content with16/20px padding,64px title banner and aligned logo, one visible page H1 at top, short page descriptions/actions below; nested parent navigation stays accessible. Context publishes dynamic server page titles through a small client PageHeading, with path-keyed fallbacks so navigation never shows previous student's name. Preserve server auth/scope before rendering. No database migration or new dependencies.
+
+Directory: scoped paginated query/search/filter through authenticated server action; name/contact/CCCD for permitted roles, accountants' CCCD never searchable/serialized unmasked. No PII in query-string URLs. Review includes shared-profile review or scoped unresolved intake snapshots. Compact desktop table, mobile cards, clear counts/empty/loading/error/pagination and direct profile action. Profile detail: information/edit alongside compact class history at wide widths, stacked mobile. Preserve admin-only canonical changes, mandatory review confirmation, masked accountant CCCD, scoped history and private documents. No merge/delete/new permission semantics.
+
+Verify layout widths/first content/one title at360/390/1440/1866 and larger desktop, mobile drawer, dynamic headings/back navigation; directory search/filter/pagination and authorization via direct actions; profile edit/history regressions. Type/lint/build/HTTP and related existing20 browser cases. Synthetic fixtures only, scoped cleanup, preserve concurrent user sessions/data. No container rollout/commit implied. Installed Next layout/server-client guides read. Status: implemented and verified locally.
+
+
+## Results
+- Shared shell fluid width,16/20px padding,64px aligned top bar/sidebar brand; all page outer caps removed. One top H1 with path-keyed dynamic title and parent navigation; body retains compact description/actions. Main scroll resets on route change. CourseLinks custom header converted.
+- New scoped query/service/action + directory table/mobile cards, name/contact/authorized-ID search, class/review filters, counts, refresh and20-row pagination. POST input only, no PII query URLs; accountants' full IDs neither searchable nor serialized. Review includes unresolved snapshots only from scoped classes. Read transaction uses RepeatableRead, validated bounded filters/rate.
+- Detail has information/editor alongside history at XL, stacks with quick anchors on mobile. Existing mandatory admin confirmation, OTP revocation, private-file and role rules preserved. Container queries keep input columns usable in narrow detail panels.
+- Found and fixed a shared8px select misalignment from hidden form-control siblings under space-y. One SelectField wrapper contains internals; calendar receives container width props, date error margin separated. Measured row alignment in browser.
+- tsc,lint(no warnings),production build/private-artifact gate PASS. Domain test:student-directory PASS (temporary schema, scope/contact/class/review/pagination/invalid filters/accountant mask). test:date-time PASS. HTTP smoke PASS on3102.
+- Final full Playwright23/23 PASS59.1s:20 prior +3 layout/directory groups. Viewports360/390/1440/1866/2560; all7 root admin pages single top H1/64px header/fluid padding; dynamic profile/back; search21students and page2; review filters; direct server-action replay using assigned manager; masked accountant DTO/UI; admin/manager detail/focus/drawer regressions. Screenshots .local/ui-layout reviewed; test waits explicitly for search results before row assertions.
+- Original8registrations/8students/4privatefilehashes preserved,7review,0unlinked/orphan.0layout test users/classes/students and0directory schemas. No user session/history cleanup; concurrent real data preserved. Temporary3101/3102 stopped.
+- No dependency/schema change, no real email, no container rollout, no branch/commit; previous dirty work retained. Rollback this phase UI/query/actions only; no data rollback needed.

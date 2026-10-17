@@ -16,7 +16,7 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN pnpm dlx prisma generate
+RUN pnpm exec prisma generate
 RUN npm run build
 
 # Runner

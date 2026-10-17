@@ -1,13 +1,13 @@
 import React from "react";
 import { occupiedWhere } from "@/lib/admissions";
 import prisma from "@/lib/prisma";
-import CourseListUser from "./CourseListUser";
+import CourseListUser, { type CourseData } from "./CourseListUser";
 
 export const dynamic = "force-dynamic";
 
 export default async function UserCoursesPage(props: { searchParams?: Promise<{ type?: string }> }) {
   const searchParams = await props.searchParams;
-  let classes: any[] = [];
+  let classes: CourseData[] = [];
   try {
     classes = await prisma.class.findMany({
       orderBy: { startDate: "asc" },

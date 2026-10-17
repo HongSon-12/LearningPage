@@ -102,3 +102,6 @@ Chỉ xem là production-ready khi:
 - Docker/Nginx/HTTPS/backup/restore/log/health check đã thử.
 - SSO staging đạt nếu nằm trong release.
 - Có rollback + backup trước migration/cutover.
+
+
+Bổ sung từ yêu cầu 17/10/2026: [17_BUOI_HOC_DIEM_DANH.md](17_BUOI_HOC_DIEM_DANH.md) mô tả buổi học, quét QR/đối chiếu ảnh và điểm danh thủ công. Trạng thái thực hiện: harness/build/phase-02c-users-attendance.md và harness/build-log.md tại root repository.

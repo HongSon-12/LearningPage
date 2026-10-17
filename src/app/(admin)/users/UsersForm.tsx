@@ -1,43 +1,429 @@
 "use client";
-import { useState } from "react";
+import { ControlledSelectField } from "@/components/forms/controlled-fields";
+import { SelectField, SelectOption } from "@/components/forms/select-field";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { UserRole } from "@prisma/client";
-import { Plus, Search, Pencil, Users, UserCheck, ShieldCheck, BookOpen, Save, Loader2 } from "lucide-react";
+import { Plus, Pencil, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { assignManager, saveUser } from "@/app/actions/users";
+import {
+  roleLabels,
+  roleDescriptions,
+  userInput,
+  type UserInput,
+} from "@/lib/user-input";
 import AdminDialog from "../components/AdminDialog";
-import { StatCard, fieldClass, primaryButton, secondaryButton } from "../components/AdminUI";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { DataTable } from "@/components/data-table/data-table";
+import type { DataColumn } from "@/components/data-table/table-features";
 
-type User={id:string;username:string;role:UserRole;active:boolean};
-type Course={id:string;code:string;name:string;managerId:string|null};
-const roles={ADMIN:{label:"Quản trị",color:"bg-violet-50 text-violet-700",description:"Quản lý toàn bộ hệ thống, tài khoản và cấu hình."},CLASS_MANAGER:{label:"Quản lý lớp",color:"bg-blue-50 text-blue-700",description:"Quản lý học viên và hồ sơ của các lớp được phân công."},ACCOUNTANT:{label:"Kế toán",color:"bg-amber-50 text-amber-700",description:"Đối soát thanh toán và quản lý mã hóa đơn điện tử."}};
-
-export default function UsersForm({users,courses}:{users:User[];courses:Course[]}) {
- const router=useRouter();const [editor,setEditor]=useState<User|null|undefined>(undefined);
- const [message,setMessage]=useState<{text:string;success:boolean}|null>(null);const [busy,setBusy]=useState(false);
- const [formError,setFormError]=useState("");const [tab,setTab]=useState<"users"|"assignments">("users");
- const [query,setQuery]=useState("");const [roleFilter,setRoleFilter]=useState("");const [status,setStatus]=useState("");const [draftRole,setDraftRole]=useState<UserRole>("CLASS_MANAGER");
- const managers=users.filter(user=>user.role==="CLASS_MANAGER"&&user.active);
- const visibleUsers=users.filter(user=>(!roleFilter||user.role===roleFilter)&&(!status||(status==="active"?user.active:!user.active))&&user.username.toLowerCase().includes(query.toLowerCase()));
- const visibleCourses=courses.filter(course=>`${course.code} ${course.name}`.toLowerCase().includes(query.toLowerCase()));
- function open(user:User|null){setEditor(user);setDraftRole(user?.role||"CLASS_MANAGER");setFormError("");}
- async function save(form:FormData) {
-  setBusy(true);setFormError("");
-  try {const result=await saveUser(form);if(!result.success){setFormError(result.error||"Không thể lưu tài khoản.");return;}setMessage({text:"Đã lưu tài khoản.",success:true});setEditor(undefined);router.refresh();}
-  catch{setFormError("Không thể lưu tài khoản. Vui lòng thử lại.");}finally{setBusy(false);}
- }
- async function assign(courseId:string,managerId:string) {
-  setBusy(true);setMessage(null);
-  try{const result=await assignManager(courseId,managerId);setMessage({text:result.success?"Đã cập nhật phân công quản lý lớp.":result.error||"Không thể phân công.",success:result.success});if(result.success)router.refresh();}
-  catch{setMessage({text:"Không thể phân công. Vui lòng thử lại.",success:false});}finally{setBusy(false);}
- }
- return <div className="space-y-6">
-  <div className="grid gap-4 sm:grid-cols-3"><StatCard label="Tổng tài khoản" value={users.length} icon={Users}/><StatCard label="Đang hoạt động" value={users.filter(user=>user.active).length} icon={UserCheck} tone="green"/><StatCard label="Lớp chưa phân công" value={courses.filter(course=>!course.managerId).length} icon={BookOpen} tone="amber"/></div>
-  {message&&<p role="status" className={`rounded-xl border px-4 py-3 text-sm ${message.success?"border-emerald-100 bg-emerald-50 text-emerald-700":"border-rose-100 bg-rose-50 text-rose-700"}`}>{message.text}</p>}
-  <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-   <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4"><div className="flex flex-wrap gap-2">{[{id:"users",label:"Tài khoản",count:users.length},{id:"assignments",label:"Phân công lớp",count:courses.length}].map(item=><button key={item.id} aria-pressed={tab===item.id} onClick={()=>{setTab(item.id as typeof tab);setQuery("");}} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${tab===item.id?"bg-blue-50 text-blue-700":"text-slate-500 hover:bg-slate-50"}`}>{item.label}<span className="ml-2 rounded-full bg-white px-2 py-0.5 text-xs text-slate-500">{item.count}</span></button>)}</div><button onClick={()=>open(null)} className={primaryButton}><Plus size={17}/>Thêm tài khoản</button></header>
-   <div className="flex flex-wrap gap-3 border-b border-slate-100 bg-slate-50/50 p-5"><label className="relative min-w-48 flex-1"><Search size={17} className="absolute left-3 top-3 text-slate-400"/><span className="sr-only">Tìm kiếm</span><input value={query} onChange={event=>setQuery(event.target.value)} placeholder={tab==="users"?"Tìm tên đăng nhập…":"Tìm mã lớp, tên lớp…"} className={`${fieldClass} pl-10`}/></label>{tab==="users"&&<><select aria-label="Lọc vai trò" value={roleFilter} onChange={event=>setRoleFilter(event.target.value)} className={`${fieldClass} sm:w-44`}><option value="">Tất cả vai trò</option>{Object.entries(roles).map(([value,role])=><option key={value} value={value}>{role.label}</option>)}</select><select aria-label="Lọc trạng thái tài khoản" value={status} onChange={event=>setStatus(event.target.value)} className={`${fieldClass} sm:w-44`}><option value="">Tất cả trạng thái</option><option value="active">Đang hoạt động</option><option value="locked">Đã khóa</option></select></>}</div>
-   <div className="max-h-[600px] overflow-auto"><table className="w-full min-w-[640px] text-left text-sm"><thead className="sticky top-0 z-10 bg-slate-50 text-xs text-slate-500"><tr>{(tab==="users"?["Tài khoản","Vai trò","Trạng thái","Thao tác"]:["Lớp học","Người phụ trách","Phân công quản lý"]).map(label=><th key={label} className="px-5 py-3 font-medium">{label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{tab==="users"?visibleUsers.map(user=><tr key={user.id} className="hover:bg-slate-50/70"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600">{user.username.slice(0,2).toUpperCase()}</span><span className="font-semibold text-slate-800">{user.username}</span></div></td><td className="px-5 py-4"><span className={`rounded-full px-3 py-1 text-xs font-medium ${roles[user.role].color}`}>{roles[user.role].label}</span></td><td className="px-5 py-4"><span className={`inline-flex items-center gap-2 text-xs font-medium ${user.active?"text-emerald-700":"text-slate-500"}`}><span className={`h-1.5 w-1.5 rounded-full ${user.active?"bg-emerald-500":"bg-slate-400"}`}/>{user.active?"Đang hoạt động":"Đã khóa"}</span></td><td className="px-5 py-4"><button onClick={()=>open(user)} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50"><Pencil size={14}/>Chỉnh sửa</button></td></tr>):visibleCourses.map(course=>{const manager=users.find(user=>user.id===course.managerId);return <tr key={course.id} className="hover:bg-slate-50/70"><td className="px-5 py-4"><p className="font-semibold text-blue-700">{course.code}</p><p className="mt-1 max-w-sm text-xs leading-5 text-slate-500">{course.name}</p></td><td className="px-5 py-4"><span className={manager?"font-medium text-slate-700":"text-xs text-amber-600"}>{manager?.username||"Chưa phân công"}</span></td><td className="px-5 py-4"><select aria-label={`Quản lý ${course.code}`} value={course.managerId||""} disabled={busy} onChange={event=>void assign(course.id,event.target.value)} className={fieldClass}><option value="">Chưa phân công</option>{manager&&!managers.some(user=>user.id===manager.id)&&<option value={manager.id} disabled>{manager.username} (không còn khả dụng)</option>}{managers.map(user=><option key={user.id} value={user.id}>{user.username}</option>)}</select></td></tr>;})}{(tab==="users"?visibleUsers:visibleCourses).length===0&&<tr><td colSpan={tab==="users"?4:3} className="px-5 py-14 text-center text-slate-500">Không có kết quả phù hợp. Thử thay đổi điều kiện tìm kiếm.</td></tr>}</tbody></table></div><footer className="border-t border-slate-100 px-5 py-3 text-xs text-slate-500">{tab==="users"?`${visibleUsers.length} tài khoản`:`${visibleCourses.length} lớp học · Chỉ tài khoản Quản lý lớp đang hoạt động mới được phân công.`}</footer>
-  </section>
-  {editor!==undefined&&<AdminDialog title={editor?"Cập nhật tài khoản":"Thêm tài khoản"} subtitle="Thiết lập thông tin đăng nhập và quyền truy cập." onClose={()=>{if(!busy)setEditor(undefined);}}><form key={editor?.id||"new"} onSubmit={event=>{event.preventDefault();void save(new FormData(event.currentTarget));}} className="space-y-5"><input type="hidden" name="id" value={editor?.id||""}/>{formError&&<p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{formError}</p>}<div className="grid gap-5 sm:grid-cols-2"><label className="space-y-2 text-sm font-medium text-slate-700">Tên đăng nhập<input required autoComplete="off" name="username" defaultValue={editor?.username} minLength={3} maxLength={60} pattern="[a-zA-Z0-9_.-]+" className={fieldClass}/><span className="block text-xs font-normal text-slate-500">3–60 ký tự; chữ, số, dấu chấm, gạch ngang hoặc gạch dưới.</span></label><label className="space-y-2 text-sm font-medium text-slate-700">{editor?"Mật khẩu mới":"Mật khẩu"}<input type="password" autoComplete="new-password" required={!editor} minLength={10} maxLength={72} name="password" className={fieldClass}/><span className="block text-xs font-normal text-slate-500">{editor?"Để trống để giữ mật khẩu hiện tại.":"Từ 10 đến 72 ký tự."}</span></label><label className="space-y-2 text-sm font-medium text-slate-700">Vai trò<select name="role" value={draftRole} onChange={event=>setDraftRole(event.target.value as UserRole)} className={fieldClass}>{Object.entries(roles).map(([value,role])=><option key={value} value={value}>{role.label}</option>)}</select></label><label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"><input type="checkbox" name="active" defaultChecked={editor?.active??true} className="h-4 w-4 accent-blue-600"/><span><span className="block font-medium">Cho phép đăng nhập</span><span className="text-xs text-slate-500">Tài khoản đang hoạt động</span></span></label></div><div className="flex items-start gap-3 rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-800"><ShieldCheck size={20} className="mt-0.5 shrink-0"/>{roles[draftRole].description}</div><footer className="flex justify-end gap-3 border-t border-slate-100 pt-5"><button type="button" disabled={busy} onClick={()=>setEditor(undefined)} className={secondaryButton}>Hủy</button><button disabled={busy} className={primaryButton}>{busy?<Loader2 size={16} className="animate-spin"/>:<Save size={16}/>}Lưu tài khoản</button></footer></form></AdminDialog>}
- </div>;
+type User = { id: string; username: string; role: UserRole; active: boolean };
+type Course = {
+  id: string;
+  code: string;
+  name: string;
+  managerId: string | null;
+};
+function AccountEditor({
+  user,
+  self,
+  onDone,
+  onCancel,
+}: {
+  user: User | null;
+  self: boolean;
+  onDone: (signInAgain: boolean) => void;
+  onCancel: () => void;
+}) {
+  const {
+    register,
+    handleSubmit,
+    control,
+    setError,
+    formState: { errors, isSubmitting },
+  } = useForm<UserInput>({
+    resolver: zodResolver(userInput),
+    defaultValues: {
+      id: user?.id || "",
+      username: user?.username || "",
+      password: "",
+      role: user?.role || "CLASS_MANAGER",
+      active: user?.active ?? true,
+    },
+  });
+  const role = useWatch({ control, name: "role" });
+  async function submit(values: UserInput) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(values))
+      form.set(key, typeof value === "boolean" ? (value ? "on" : "") : value);
+    try {
+      const result = await saveUser(form);
+      if (!result.success) {
+        setError("root", { message: result.error });
+        return;
+      }
+      toast.success("Đã lưu tài khoản.");
+      onDone(Boolean(result.signInAgain));
+    } catch {
+      setError("root", {
+        message: "Không thể lưu tài khoản. Vui lòng thử lại.",
+      });
+    }
+  }
+  return (
+    <form onSubmit={handleSubmit(submit)} className="space-y-5">
+      <input type="hidden" {...register("id")} />
+      {errors.root && (
+        <p role="alert" className="text-sm text-destructive">
+          {errors.root.message}
+        </p>
+      )}
+      <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="account-name">Tên đăng nhập</Label>
+          <Input
+            id="account-name"
+            autoComplete="off"
+            {...register("username")}
+          />
+          {errors.username && (
+            <p role="alert" className="text-sm text-destructive">
+              {errors.username.message}
+            </p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="account-password">
+            {user ? "Mật khẩu mới" : "Mật khẩu"}
+          </Label>
+          <Input
+            id="account-password"
+            type="password"
+            autoComplete="new-password"
+            {...register("password")}
+          />
+          <p className="text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-muted-foreground">
+            {user ? "Để trống để giữ mật khẩu. " : ""}Ít nhất 10 ký tự; tối đa
+            72 byte.
+          </p>
+          {errors.password && (
+            <p role="alert" className="text-sm text-destructive">
+              {errors.password.message}
+            </p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="account-role">Vai trò</Label>
+          <ControlledSelectField
+            id="account-role"
+            name="role"
+            control={control}
+            disabled={self}
+          >
+            {Object.entries(roleLabels).map(([value, label]) => (
+              <SelectOption key={value} value={value}>
+                {label}
+              </SelectOption>
+            ))}
+          </ControlledSelectField>
+        </div>
+        <Label className="flex items-center gap-3 rounded-lg border p-4">
+          <input
+            type="checkbox"
+            {...register("active")}
+            disabled={self}
+            className="size-4"
+          />
+          Cho phép đăng nhập
+        </Label>
+      </div>
+      <p className="rounded-lg bg-muted p-4 text-sm leading-6">
+        {roleDescriptions[role]}
+      </p>
+      <p className="text-sm text-muted-foreground">
+        {self
+          ? "Bạn đang sửa tài khoản của mình và sẽ cần đăng nhập lại sau khi lưu. Không thể tự khóa hay hạ quyền."
+          : user
+            ? "Lưu thay đổi sẽ đăng xuất các phiên hiện tại của tài khoản này. Nếu đang phụ trách lớp, cần gỡ hoặc chuyển phân công trước khi khóa hay đổi vai trò."
+            : "Tài khoản mới sử dụng vai trò được chọn. Phân công lớp ở mục bên cạnh sau khi tạo."}
+      </p>
+      <footer className="flex justify-end gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isSubmitting}
+          onClick={onCancel}
+        >
+          Hủy
+        </Button>
+        <Button disabled={isSubmitting}>
+          {isSubmitting ? "Đang lưu…" : "Lưu tài khoản"}
+        </Button>
+      </footer>
+    </form>
+  );
+}
+export default function UsersForm({
+  users,
+  courses,
+  currentUserId,
+}: {
+  users: User[];
+  courses: Course[];
+  currentUserId: string;
+}) {
+  const router = useRouter();
+  const [editor, setEditor] = useState<User | null | undefined>();
+  const [tab, setTab] = useState<"users" | "assignments">("users");
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
+  const managers = users.filter(
+    (user) => user.role === "CLASS_MANAGER" && user.active,
+  );
+  const visibleUsers = users.filter(
+    (user) =>
+      (!roleFilter || user.role === roleFilter) &&
+      (!status || (status === "active" ? user.active : !user.active)) &&
+      user.username.toLowerCase().includes(query.toLowerCase()),
+  );
+  const visibleCourses = courses.filter((course) =>
+    `${course.code} ${course.name}`.toLowerCase().includes(query.toLowerCase()),
+  );
+  const columns = useMemo<DataColumn<User>[]>(
+    () => [
+      {
+        accessorKey: "username",
+        header: "Tên đăng nhập",
+        cell: ({ row }) => (
+          <span className="font-medium">
+            {row.original.username}
+            {row.original.id === currentUserId && (
+              <Badge variant="outline" className="ml-2">
+                Bạn
+              </Badge>
+            )}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "role",
+        header: "Vai trò",
+        cell: ({ row }) => (
+          <Badge variant="secondary">{roleLabels[row.original.role]}</Badge>
+        ),
+      },
+      {
+        id: "active",
+        accessorFn: (user) => (user.active ? "Đang hoạt động" : "Đã khóa"),
+        header: "Trạng thái",
+      },
+      {
+        id: "actions",
+        header: "Thao tác",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Button
+            id={`user-edit-${row.original.id}`}
+            variant="action"
+            size="row"
+            onClick={() => setEditor(row.original)}
+          >
+            <Pencil />
+            Chỉnh sửa
+          </Button>
+        ),
+      },
+    ],
+    [currentUserId],
+  );
+  async function assign(classId: string, managerId: string) {
+    setBusy(true);
+    try {
+      const result = await assignManager(classId, managerId);
+      if (result.success) {
+        toast.success("Đã cập nhật phân công lớp.");
+        router.refresh();
+      } else toast.error(result.error);
+    } catch {
+      toast.error("Không thể phân công. Vui lòng thử lại.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  const assignmentColumns: DataColumn<Course>[] = [
+    { accessorKey: "code", header: "Mã lớp" },
+    { accessorKey: "name", header: "Tên lớp" },
+    {
+      id: "manager",
+      header: "Quản lý lớp",
+      enableSorting: false,
+      cell: ({ row }) => {
+        const course = row.original;
+        const manager = users.find((user) => user.id === course.managerId);
+        return (
+          <SelectField
+            aria-label={`Quản lý ${course.code}`}
+            value={course.managerId || ""}
+            disabled={busy}
+            onValueChange={(value) => void assign(course.id, value)}
+          >
+            <SelectOption value="">Chưa phân công</SelectOption>
+            {manager && !managers.some((user) => user.id === manager.id) && (
+              <SelectOption value={manager.id} disabled>
+                {manager.username} (không còn khả dụng)
+              </SelectOption>
+            )}
+            {managers.map((user) => (
+              <SelectOption key={user.id} value={user.id}>
+                {user.username}
+              </SelectOption>
+            ))}
+          </SelectField>
+        );
+      },
+    },
+  ];
+  return (
+    <div className="space-y-5">
+      <div className="grid gap-3 lg:grid-cols-3">
+        {Object.entries(roleLabels).map(([role, label]) => (
+          <article
+            key={role}
+            className="space-y-2 rounded-xl border bg-card p-4"
+          >
+            <h2 className="flex items-center gap-2 font-semibold">
+              <ShieldCheck className="size-4" />
+              {label}
+              <Badge variant="outline">
+                {users.filter((user) => user.role === role).length}
+              </Badge>
+            </h2>
+            <p className="text-sm leading-6 text-muted-foreground">
+              {roleDescriptions[role as UserRole]}
+            </p>
+          </article>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant={tab === "users" ? "default" : "outline"}
+          aria-pressed={tab === "users"}
+          onClick={() => {
+            setTab("users");
+            setQuery("");
+          }}
+        >
+          Tài khoản
+        </Button>
+        <Button
+          variant={tab === "assignments" ? "default" : "outline"}
+          aria-pressed={tab === "assignments"}
+          onClick={() => {
+            setTab("assignments");
+            setQuery("");
+          }}
+        >
+          Phân công lớp
+        </Button>
+        <Button
+          id="user-create"
+          className="sm:ml-auto"
+          onClick={() => setEditor(null)}
+        >
+          <Plus />
+          Thêm tài khoản
+        </Button>
+      </div>
+      <section className="space-y-4 rounded-xl border bg-card p-4">
+        <div className="flex flex-wrap gap-3">
+          <div className="min-w-44 flex-1 space-y-2">
+            <Label htmlFor="users-query">Tìm kiếm</Label>
+            <Input
+              id="users-query"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={
+                tab === "users" ? "Tìm tên đăng nhập…" : "Mã lớp hoặc tên lớp…"
+              }
+            />
+          </div>
+          {tab === "users" && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="users-role">Lọc vai trò</Label>
+                <SelectField
+                  id="users-role"
+                  value={roleFilter}
+                  onValueChange={(value) => setRoleFilter(value)}
+                >
+                  <SelectOption value="">Tất cả vai trò</SelectOption>
+                  {Object.entries(roleLabels).map(([value, label]) => (
+                    <SelectOption key={value} value={value}>
+                      {label}
+                    </SelectOption>
+                  ))}
+                </SelectField>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="users-status">Lọc trạng thái tài khoản</Label>
+                <SelectField
+                  id="users-status"
+                  value={status}
+                  onValueChange={(value) => setStatus(value)}
+                >
+                  <SelectOption value="">Tất cả trạng thái</SelectOption>
+                  <SelectOption value="active">Đang hoạt động</SelectOption>
+                  <SelectOption value="locked">Đã khóa</SelectOption>
+                </SelectField>
+              </div>
+            </>
+          )}
+        </div>
+        {tab === "users" ? (
+          <DataTable
+            columns={columns}
+            data={visibleUsers}
+            label="Tài khoản"
+            emptyTitle="Không có tài khoản phù hợp"
+            emptyDescription="Thay đổi bộ lọc hoặc thêm tài khoản."
+          />
+        ) : (
+          <DataTable
+            columns={assignmentColumns}
+            data={visibleCourses}
+            label="Phân công lớp"
+            emptyTitle="Không có lớp phù hợp"
+            emptyDescription="Thử thay đổi điều kiện tìm kiếm."
+          />
+        )}
+      </section>
+      {editor !== undefined && (
+        <AdminDialog
+          returnFocusId={editor ? `user-edit-${editor.id}` : "user-create"}
+          title={editor ? "Cập nhật tài khoản" : "Thêm tài khoản"}
+          subtitle="Thiết lập đăng nhập, vai trò và trạng thái tài khoản."
+          onClose={() => setEditor(undefined)}
+        >
+          <AccountEditor
+            user={editor}
+            self={editor?.id === currentUserId}
+            onCancel={() => setEditor(undefined)}
+            onDone={(signInAgain) => {
+              setEditor(undefined);
+              if (signInAgain) router.replace("/login");
+              else router.refresh();
+            }}
+          />
+        </AdminDialog>
+      )}
+    </div>
+  );
 }

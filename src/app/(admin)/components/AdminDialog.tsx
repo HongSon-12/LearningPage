@@ -1,8 +1,72 @@
 "use client";
-import { useEffect, useId, useRef, type ReactNode } from "react";
-import { X } from "lucide-react";
-export default function AdminDialog({title,subtitle,children,onClose}:{title:string;subtitle?:string;children:ReactNode;onClose:()=>void}) {
- const ref=useRef<HTMLDialogElement>(null);const id=useId();
- useEffect(()=>{const dialog=ref.current;if(dialog&&!dialog.open)dialog.showModal();return()=>{dialog?.close();};},[]);
- return <dialog ref={ref} aria-labelledby={id} onCancel={e=>{e.preventDefault();onClose();}} className="m-auto max-h-[90vh] w-[calc(100%_-_2rem)] max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white p-0 text-slate-800 shadow-2xl backdrop:bg-slate-950/50 backdrop:backdrop-blur-sm"><header className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5"><div><h2 id={id} className="text-lg font-bold text-slate-900">{title}</h2>{subtitle&&<p className="mt-1 text-sm text-slate-500">{subtitle}</p>}</div><button type="button" onClick={onClose} aria-label="Đóng cửa sổ" className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"><X size={20}/></button></header><div className="max-h-[calc(90vh-100px)] overflow-y-auto p-5 sm:p-6">{children}</div></dialog>;
+import { useRef, type ReactNode } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+export default function AdminDialog({
+  title,
+  subtitle,
+  children,
+  onClose,
+  returnFocusId,
+  initialFocusId,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  onClose: () => void;
+  returnFocusId?: string;
+  initialFocusId?: string;
+}) {
+  const returnFocus = useRef<HTMLElement | null>(null);
+  const focusId = useRef<string | undefined>(undefined);
+  return (
+    <Dialog
+      open
+      onOpenChange={(value) => {
+        if (!value) onClose();
+      }}
+    >
+      <DialogContent
+        onOpenAutoFocus={(event) => {
+          focusId.current = returnFocusId;
+          returnFocus.current =
+            document.activeElement instanceof HTMLElement
+              ? document.activeElement
+              : null;
+          if (initialFocusId) {
+            const initial = document.getElementById(initialFocusId);
+            if (initial) {
+              event.preventDefault();
+              initial.focus({ preventScroll: true });
+            }
+          }
+        }}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          const target = focusId.current
+            ? document.getElementById(focusId.current)
+            : returnFocus.current;
+          if (target?.isConnected) target.focus();
+          else document.getElementById("admin-main")?.focus();
+        }}
+        className="max-h-[90dvh] gap-0 overflow-hidden p-0 sm:max-w-4xl"
+      >
+        <DialogHeader className="border-b px-5 py-5 pr-16 text-left sm:px-6">
+          <DialogTitle className="leading-6">{title}</DialogTitle>
+          <DialogDescription>
+            {subtitle ||
+              "Xem và cập nhật thông tin trong phạm vi được phân quyền."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[calc(90dvh-120px)] overflow-y-auto p-5 sm:p-6">
+          {children}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }

@@ -159,3 +159,19 @@ Cần chốt chính sách:
 - audit giữ bao lâu;
 - bản export tạm có xóa sau khi tải hay tạo on-the-fly;
 - dữ liệu test không được copy nguyên production PII nếu không cần.
+
+
+## Cập nhật triển khai local —17/10/2026
+Private files/FK/authorization/audit/body limits/rate/security headers đã triển khai và giữ nguyên. 4liên kết hồ sơ cũ đã chuyển; 6 file gốc giữ trong backup/quarantine.
+
+Người dùng đổi quyết định sang **CCCD → mã xác thực email → lịch sử học**, đồng thời yêu cầu hồ sơ học viên dùng chung. Student có một email tra cứu; nhiều Registration giữ snapshot/lịch sử. Không chọn email mới nhất tùy tiện, không để đăng ký mới ghi đè hồ sơ. Hồ sơ cũ không nhất quán cần admin đối chiếu; registration chưa khớp hồ sơ không được trả trong public history hoặc tổng số. Manager chỉ xem lớp được giao; accountant có CCCD masked.
+
+OTP 6 chữ số, 10 phút, một lần, 5 lần sai, cooldown 60 giây; HMAC với key runtime, không raw code/CCCD trong URL/log/outbox. SEARCH_OTP worker có lease/retry; old link jobs/tokens bị vô hiệu hóa. Email đăng ký vẫn tùy chọn. SMTP thật/lịch worker, retention, scan/TLS/HSTS/CSP enforcement và production rollout vẫn là gate. Xem ADR-019 và `harness/context/phase-02b-student-profiles-otp-context.md`. Tài liệu phương án link ở trên là lịch sử đề xuất, không phải luồng hiện tại.
+
+
+## Phase02f — Reuse profile details during public registration
+Registration uses the same generic CCCD email request, cooldown/rate limits, worker and single-use OTP verification as history lookup. The new `registration-profile` actions validate runtime inputs and pass the expected CCCD into the shared verification transaction. No full name/contact data is returned on code request. History lookup still returns only its prior limited DTO.
+
+After successful verification, the registration-only DTO contains canonical name/DOB/CCCD/phone/email and gender/organization/workplace from the latest non-review snapshot with the same CCCD, plus a returning flag. It excludes file references, notes, certificates, payments, internal IDs and history. Missing optional values stay empty for user completion. The OTP is consumed under the student lock before resolving the DTO; wrong CCCD/code, expiry, replay and identity/email changes fail.
+
+Editing populated fields creates the new registration snapshot under existing admission/duplicate/file rules. It never overwrites the canonical profile or permanent lookup email. A difference in identity/contact fields retains the existing review flag. Old private documents are not copied or made public; required uploads still apply. Generic email wording now covers history lookup and registration. Actual SMTP delivery remains an operational prerequisite; automated tests use synthetic recipients and a fake sender.

@@ -1,9 +1,12 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
 import { PhoneCall } from "lucide-react";
 
 export default function FloatingCall() {
+  const pathname = usePathname();
+  if (pathname.startsWith("/register/")) return null;
   return (
     <a 
       href="tel:0387644522" 

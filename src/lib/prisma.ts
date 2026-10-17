@@ -16,8 +16,8 @@ declare global {
   var prismaGlobal: undefined | ReturnType<typeof prismaClientSingleton>
 }
 
-const prisma = globalThis.prismaSchemaVersion === "student-management-v1" ? globalThis.prismaGlobal ?? prismaClientSingleton() : prismaClientSingleton()
+const prisma = globalThis.prismaSchemaVersion === "class-attendance-v4" ? globalThis.prismaGlobal ?? prismaClientSingleton() : prismaClientSingleton()
 
 export default prisma
 
-if (process.env.NODE_ENV !== 'production') {globalThis.prismaGlobal = prisma; globalThis.prismaSchemaVersion = 'student-management-v1'}
+if (process.env.NODE_ENV !== 'production') {globalThis.prismaGlobal = prisma; globalThis.prismaSchemaVersion = 'class-attendance-v4'}

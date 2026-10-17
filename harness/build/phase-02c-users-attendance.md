@@ -1,0 +1,31 @@
+# Phase 02c — Accounts and class-session attendance
+
+User 17/10/2026: keep ADMIN, CLASS_MANAGER, ACCOUNTANT now. Future custom permissions apply only to the latter two; no custom permission editor is delivered in this phase. Complete /users with shadcn components, account create/edit/reset/lock, descriptions and assignments. Preserve current role boundaries.
+
+Add sessions under each class; create/edit, close/reopen and attendance. ADMIN and the assigned active CLASS_MANAGER only. ACCOUNTANT cannot access session attendance, student ID preview or mutations. QR locates a candidate, never automatically marks attendance. A human compares the registered ID photo/name/CCCD and explicitly confirms or cancels. Manual name/phone/CCCD search supports the same confirmation. Only non-rejected/non-cancelled registrations in the session's class can be marked. Pending approval/payment remains eligible as in the current active roster; display status. Closed sessions reject writes. Duplicate confirmation is idempotent; undo retains an audit trail. Historic attendance remains attached to its original session across transfers.
+
+Additive ClassSession + Attendance migration, restrictive foreign keys, no data reset/deletion. Rehearse migrations in isolated schema; backup actual local DB before migrate deploy. Existing Docker deployment remains untouched. Synchronize writes with roster transaction; validate fresh active role, class scope, registration ownership and session state on every mutation. Account updates revoke sessions, protect active admins and prevent orphaned manager assignments. No PII/password/QR payload in audit.
+
+Dependency proposal before installation: jsqr@1.4.0, Apache-2.0, pure TypeScript/JS decoder, no runtime dependencies or React peer constraint. Existing browser BarcodeDetector cannot cover all supported mobile browsers. Decode canvas frames locally via a lazy import only after the user enables camera; no remote service or frames uploaded. Cap frame dimensions/rate; stop tracks on match, close, hidden tab and unmount. Established but low-activity upstream is a maintenance risk; pin version, keep decoder isolated, rollback by removing import/dependency and retaining manual search. Tests: synthetic QR frames, actual decoder, mock camera lifecycle and permission denial; physical Android/iOS acceptance remains pending. Sources: https://github.com/cozmo/jsQR and https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia . Camera needs HTTPS on phones, explicit permission. Next headers permit camera only on session attendance route.
+
+QR parser accepts only a 12-digit identifier or first 12-digit field in a pipe-separated card payload. Does not trust embedded name/address or follow URLs. Card payload layouts may vary; unknown formats fail closed and offer manual entry. https://bocongan.gov.vn/bai-viet/ban-hanh-mau-the-can-cuoc-mau-giay-chung-nhan-can-cuoc-su-dung-tu-0172024-d1-t1415 confirms information carried in QR, not a normative delimiter/layout. No claim of cryptographic or government database verification.
+
+Verification: typecheck, lint, production build, existing domain regressions, isolated new domain tests, browser tests of account/session/confirmation/scope and camera failure. Preview route allows authenticated scoped ID raster image only, no-store/nosniff/CSP; PDFs remain downloads. Real card images and real phone testing are not automated.
+
+Status: implemented and verified locally; physical phone/card acceptance and container rollout remain pending.
+
+Test fixture proposal: generate a static synthetic card QR PNG once with the official qrcode@1.5.4 CLI (MIT) via pnpm dlx. It is not an application/test dependency; only the fixture is retained. Browser tests feed it through a canvas MediaStream and the actual jsQR decoder. No real card data used. Source: https://github.com/soldair/node-qrcode .
+
+
+## Verification results
+- Base commit a6ff1a2672ee606aa5a0f6ff87f64b7f1aee46e7; existing uncommitted phase work preserved.
+- `pnpm exec tsc --noEmit`: PASS. `pnpm lint`: PASS, no warnings. `NEXT_BUILD_DIR=.next-build pnpm build`: PASS; private artifact trace gate PASS.
+- `pnpm test:attendance`: PASS isolated migrations/role/class/roster/time/QR/concurrency/idempotence/close/reopen/undo/transfer/history/account/session guards.
+- `pnpm test:management`, `pnpm test:security`, `pnpm test:students`: PASS existing regressions and populated legacy migration rehearsal.
+- Final `pnpm exec playwright test`: 15/15 PASS, 37.2s, production standalone. New6 cases include direct server-action replay under wrong role/class. Actual QR decoder processes synthetic canvas MediaStream; no raw QR fields in POST. Camera denial, late-granted permission cleanup, scoped raster preview/PDF download fallback, responsive390px and keyboard focus included. Synthetic screenshots in `.local/ui-attendance` reviewed, including corrected initial focus at name/CCCD.
+- `pnpm test:http` via local3102: PASS public/protected pages, real admin login/export, manager/accountant scope and disabled sessions.
+- Backup `.local/backups/security-2026-10-17T08-02-31-494Z-6050a2f5` restored into temporary DB:8 registrations/4 prior migrations; zero restore errors except the documented pg17-client transaction_timeout SET unsupported on server16. Additive migration applied locally;5 migrations current. No container rebuilt/reloaded.
+- Final original data:8 registrations,8 student profiles,7 needing review,4 private files with verified hashes;0 unlinked/orphan profiles.0 attendance test users/classes/schemas;0 residual session/attendance rows. Temporary3101/3102 servers stopped. `git diff --check` PASS.
+- jsQR production async chunk129,980bytes,46,212bytes gzip. Only fetched after opening camera; no runtime dependencies. Source distribution256,885bytes/56,829gzip. No framework major changes.
+
+Rollback: revert phase UI/actions/dependency code using the existing diff carefully (earlier work is uncommitted), retain additive tables/history and private-file restrictions. Do not drop attendance tables or restore a pre-phase DB over new attendance data without a separate data-recovery plan. Physical Android/iOS camera/cards and HTTPS deployment remain acceptance tasks; no claim of live card authenticity verification.

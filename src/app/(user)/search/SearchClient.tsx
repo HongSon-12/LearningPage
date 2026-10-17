@@ -1,132 +1,234 @@
 "use client";
-
-import React, { useState } from "react";
-import { Search, FileText, CheckCircle, Clock, XCircle, Download } from "lucide-react";
-import { searchRegistrations } from "@/app/actions/search";
-
+import { useEffect, useState, type FormEvent } from "react";
+import { requestSearchCode, verifySearchCode } from "@/app/actions/search";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+type Result = NonNullable<Awaited<ReturnType<typeof verifySearchCode>>["data"]>;
+const date = (value: string) => new Date(value).toLocaleDateString("vi-VN");
 export default function SearchClient() {
-  const [query, setQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<any[] | null>(null);
-  const [error, setError] = useState("");
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
-
-    setIsLoading(true);
-    setError("");
-    const res = await searchRegistrations(query);
-    
-    if (res.success) {
-      setResults(res.data || []);
-    } else {
-      setError(res.error || "Có lỗi xảy ra");
+  const [cccd, setCccd] = useState("");
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const [result, setResult] = useState<Result | null>(null);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [resendAt, setResendAt] = useState(0);
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    if (!challengeId) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [challengeId]);
+  const remaining = Math.max(0, Math.ceil((resendAt - now) / 1000));
+  async function request(event?: FormEvent) {
+    event?.preventDefault();
+    setMessage("");
+    if (!/^[0-9]{12}$/.test(cccd.trim().replace(/[\s.-]/g, ""))) {
+      setMessage("Vui lòng nhập CCCD gồm 12 chữ số.");
+      return;
     }
-    setIsLoading(false);
-  };
-
+    setBusy(true);
+    try {
+      const response = await requestSearchCode(cccd);
+      if (response.success && response.challengeId) {
+        setChallengeId(response.challengeId);
+        setCode("");
+        setResult(null);
+        setMessage(response.message || "");
+        const time = Date.now();
+        setNow(time);
+        setResendAt(time + 60000);
+      } else setMessage(response.error || "Vui lòng thử lại.");
+    } catch {
+      setMessage("Chưa gửi được yêu cầu. Vui lòng thử lại.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function verify(event: FormEvent) {
+    event.preventDefault();
+    if (!challengeId) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await verifySearchCode(challengeId, code);
+      if (response.success && response.data) {
+        setResult(response.data);
+        setChallengeId(null);
+        setCccd("");
+        setCode("");
+      } else setMessage(response.error || "Mã xác thực không hợp lệ.");
+    } catch {
+      setMessage("Không thể tra cứu. Vui lòng thử lại hoặc yêu cầu mã mới.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  function reset() {
+    setChallengeId(null);
+    setCode("");
+    setCccd("");
+    setResult(null);
+    setMessage("");
+  }
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-12">
-      <form onSubmit={handleSearch} className="w-full max-w-xl mx-auto">
-        <div className="glass-card p-2 rounded-2xl flex items-center shadow-lg shadow-blue-500/10 border border-gray-200/50 bg-white/80 backdrop-blur-xl">
-          <input 
-            type="text" 
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nhập số CCCD, SĐT, hoặc Mã HĐĐT..." 
-            className="flex-1 bg-transparent px-6 py-4 outline-none text-gray-800 font-medium placeholder:text-gray-400"
-          />
-          <button 
-            type="submit"
-            disabled={isLoading}
-            className="bg-[var(--color-brand-600)] hover:bg-[var(--color-brand-700)] text-white p-4 rounded-xl transition-all disabled:opacity-50 flex items-center gap-2"
+    <div className="mx-auto w-full max-w-3xl space-y-6">
+      {!result &&
+        (challengeId ? (
+          <form
+            onSubmit={verify}
+            className="space-y-5 rounded-2xl border bg-white p-6 shadow-sm"
           >
-            {isLoading ? <span className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></span> : <Search size={24} />}
-          </button>
-        </div>
-        {error && <div className="text-rose-500 text-center mt-4 font-medium">{error}</div>}
-      </form>
-
-      {results !== null && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <h2 className="text-2xl font-bold text-gray-900 border-b border-gray-200 pb-4">Kết quả tra cứu ({results.length})</h2>
-          
-          {results.length === 0 ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-2xl p-12 text-center text-gray-500 font-medium">
-              Không tìm thấy thông tin đăng ký nào khớp với từ khóa của bạn.
+            <h2 className="text-xl font-bold">Xác thực email</h2>
+            <p className="text-sm text-gray-600">
+              Nhập mã 6 chữ số gửi đến email trong hồ sơ học viên. Mã có hiệu
+              lực 10 phút và chỉ dùng một lần.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="lookup-otp">Mã xác thực</Label>
+              <Input
+                id="lookup-otp"
+                required
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                value={code}
+                onChange={(event) =>
+                  setCode(event.target.value.replace(/[^0-9]/g, "").slice(0, 6))
+                }
+                className="max-w-xs text-center text-xl tracking-[0.4em]"
+              />
             </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-6">
-              {results.map((reg, idx) => (
-                <div key={idx} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row gap-6 hover:shadow-md transition-shadow">
-                  {/* Left Column */}
-                  <div className="flex-1 space-y-4">
-                    <div>
-                      <h3 className="text-lg font-bold text-[var(--color-brand-700)]">{reg.class.name}</h3>
-                      <div className="text-gray-500 font-medium">Mã lớp: {reg.class.code}</div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 bg-gray-50 rounded-xl p-4 border border-gray-100">
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase font-semibold">Học viên</div>
-                        <div className="font-bold text-gray-900">{reg.fullName}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase font-semibold">CCCD / SĐT</div>
-                        <div className="font-bold text-gray-900">{reg.cccd || reg.phone}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase font-semibold">Trạng thái Hồ sơ</div>
-                        <div className={`font-bold flex items-center gap-1 ${
-                          reg.status === "APPROVED" ? "text-emerald-600" : 
-                          reg.status === "REJECTED" ? "text-rose-600" : "text-blue-600"
-                        }`}>
-                          {reg.status === "APPROVED" ? <><CheckCircle size={14}/> Đã duyệt</> : 
-                           reg.status === "REJECTED" ? <><XCircle size={14}/> Bị từ chối</> : 
-                           <><Clock size={14}/> Đang chờ xử lý</>}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500 uppercase font-semibold">Thanh toán</div>
-                        <div className={`font-bold flex items-center gap-1 ${
-                          reg.paymentStatus === "PAID" ? "text-emerald-600" : 
-                          reg.paymentStatus === "CANCELLED" ? "text-rose-600" : "text-orange-600"
-                        }`}>
-                          {reg.paymentStatus === "PAID" ? <><CheckCircle size={14}/> Đã T.Toán</> : 
-                           reg.paymentStatus === "CANCELLED" ? <><XCircle size={14}/> Đã hủy</> : 
-                           <><Clock size={14}/> Chờ T.Toán</>}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {reg.confirmationNumber && <p className="font-bold">Số GXN: {reg.confirmationNumber}</p>}
-                  {/* Right Column (Codes) */}
-                  <div className="w-full md:w-64 space-y-4">
-                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
-                      <div className="text-xs text-[var(--color-brand-600)] uppercase font-semibold mb-1 flex items-center gap-1"><FileText size={14}/> Mã HĐĐT</div>
-                      {reg.invoiceCode ? (
-                        <div className="font-bold text-gray-900 text-lg tracking-wide">{reg.invoiceCode}</div>
-                      ) : (
-                        <div className="text-gray-400 italic text-sm">Chưa phát hành</div>
-                      )}
-                    </div>
-
-                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4">
-                      <div className="text-xs text-emerald-600 uppercase font-semibold mb-1 flex items-center gap-1"><CheckCircle size={14}/> Mã {reg.class.certificateType === "CERTIFICATE" ? "Chứng chỉ" : "Giấy XN"}</div>
-                      {reg.certificateCode ? (
-                        <div className="font-bold text-gray-900 text-lg tracking-wide">{reg.certificateCode}</div>
-                      ) : (
-                        <div className="text-gray-400 italic text-sm">Chưa cấp</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="flex flex-wrap gap-3">
+              <Button disabled={busy || code.length !== 6} type="submit">
+                {busy ? "Đang kiểm tra…" : "Xác thực và xem lịch sử học"}
+              </Button>
+              <Button
+                variant="outline"
+                type="button"
+                disabled={busy || remaining > 0}
+                onClick={() => void request()}
+              >
+                {remaining > 0 ? `Gửi lại mã sau ${remaining}s` : "Gửi lại mã"}
+              </Button>
+              <Button
+                variant="ghost"
+                type="button"
+                disabled={busy}
+                onClick={reset}
+              >
+                Đổi CCCD
+              </Button>
             </div>
+          </form>
+        ) : (
+          <form
+            onSubmit={request}
+            className="space-y-5 rounded-2xl border bg-white p-6 shadow-sm"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="lookup-cccd">Số căn cước công dân</Label>
+              <Input
+                id="lookup-cccd"
+                required
+                inputMode="numeric"
+                autoComplete="off"
+                maxLength={18}
+                value={cccd}
+                onChange={(event) => setCccd(event.target.value)}
+                placeholder="Nhập CCCD gồm 12 chữ số"
+              />
+            </div>
+            <Button disabled={busy} type="submit">
+              {busy ? "Đang gửi yêu cầu…" : "Gửi mã xác thực"}
+            </Button>
+            <p className="text-sm text-gray-600">
+              Mã được gửi đến email trong hồ sơ học viên. Nếu chưa cung cấp
+              email hoặc đã đổi email, vui lòng liên hệ trung tâm để đối chiếu
+              hồ sơ.
+            </p>
+          </form>
+        ))}
+      {message && (
+        <p role="status" className="rounded-xl border bg-blue-50 p-4 text-sm">
+          {message}
+        </p>
+      )}
+      {result && (
+        <section className="space-y-5">
+          <div className="rounded-2xl border bg-white p-6">
+            <h2 className="text-2xl font-bold">Lịch sử học</h2>
+            <p className="mt-2 text-gray-600">
+              Học viên: {result.fullName} · {result.total} lần đăng ký
+            </p>
+            <p className="mt-2 text-sm text-gray-500">
+              Trạng thái dưới đây phản ánh từng lần đăng ký; lớp kết thúc chưa
+              đồng nghĩa đã được cấp chứng chỉ. Nếu thiếu lần học, vui lòng liên
+              hệ trung tâm để đối chiếu hồ sơ.
+            </p>
+          </div>
+          {result.history.map((reg) => (
+            <article
+              key={reg.id}
+              className="space-y-4 rounded-2xl border bg-white p-6 shadow-sm"
+            >
+              <div>
+                <h3 className="text-lg font-bold">{reg.class.name}</h3>
+                <p className="break-words text-sm text-gray-600">
+                  Mã lớp: {reg.class.code}
+                </p>
+                <p className="mt-2 text-sm">
+                  {date(reg.class.startDate)} – {date(reg.class.endDate)}
+                  {reg.class.status === "DONE" ? " · Lớp đã kết thúc" : ""}
+                </p>
+              </div>
+              <dl className="grid gap-4 sm:grid-cols-2">
+                {[
+                  [
+                    "Đăng ký",
+                    reg.status === "APPROVED"
+                      ? "Đã duyệt"
+                      : reg.status === "REJECTED"
+                        ? "Đã từ chối"
+                        : "Đang xử lý",
+                  ],
+                  [
+                    "Thanh toán",
+                    reg.paymentStatus === "PAID"
+                      ? "Đã thanh toán"
+                      : reg.paymentStatus === "CANCELLED"
+                        ? "Đã hủy"
+                        : "Chờ thanh toán",
+                  ],
+                  ["Mã hóa đơn", reg.invoiceCode || "Chưa phát hành"],
+                  ["Số chứng chỉ", reg.certificateCode || "Chưa cấp"],
+                  ["Số giấy xác nhận", reg.confirmationNumber || "Chưa cấp"],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-sm text-gray-500">{label}</dt>
+                    <dd className="break-words font-medium">{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </article>
+          ))}
+          {!result.history.length && (
+            <p className="rounded-xl border bg-white p-6">
+              Hồ sơ chưa có lần đăng ký học nào.
+            </p>
           )}
-        </div>
+          {result.total > result.history.length && (
+            <p className="text-sm text-gray-600">
+              Đang hiển thị {result.history.length} lần đăng ký gần nhất. Liên
+              hệ trung tâm để nhận lịch sử đầy đủ.
+            </p>
+          )}
+          <Button variant="outline" onClick={reset}>
+            Tra cứu lại
+          </Button>
+        </section>
       )}
     </div>
   );

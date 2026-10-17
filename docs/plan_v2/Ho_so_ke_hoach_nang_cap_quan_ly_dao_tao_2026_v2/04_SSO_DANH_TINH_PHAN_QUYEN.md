@@ -271,3 +271,15 @@ Sau khi SSO ổn định mới lập dự án riêng để đánh giá Auth.js v
 - back-channel replay idempotent;
 - logout local không được mô tả sai thành global logout;
 - SSO lỗi không làm public registration ngừng hoạt động.
+
+
+## Chốt bổ sung tài khoản/điểm danh — 17/10/2026
+
+Người dùng chốt dùng ba vai trò hiện tại. ADMIN quản lý tài khoản và phân công; CLASS_MANAGER quản lý buổi/điểm danh trong lớp được giao; ACCOUNTANT không có quyền điểm danh/ảnh CCCD. Tương lai cho phép tùy chỉnh quyền của CLASS_MANAGER/ACCOUNTANT, giữ ADMIN riêng; chưa thêm role/permission editor hay thay luồng SSO trong phase02c.
+
+`/users` đã dùng shadcn/ui, TanStack Table, RHF/Zod và Sonner: tạo/sửa tên đăng nhập, đổi vai trò, đặt mật khẩu, khóa/mở, phân công lớp. Server xác thực lại ADMIN đang hoạt động trong transaction, chặn tự khóa/hạ quyền, giữ quản trị hoạt động khi có thao tác đồng thời và không cho khóa/đổi vai trò quản lý đang còn lớp được giao. Cần chuyển/gỡ lớp trước. Sửa tài khoản thu hồi mọi session của tài khoản đó; sửa chính mình phải đăng nhập lại. Mật khẩu mới từ 10 ký tự, tối đa 72 byte theo giới hạn bcrypt, không log plaintext/hash.
+
+
+## Tìm hồ sơ học viên — Phase02e
+
+Server action searchStudentDirectory tự đọc session/actor; không nhận role hay Prisma where từ browser. Query luôn kết hợp studentScope và classScope, kể cả lọc theo classId, count và unresolved registration snapshots. Mỗi request giới hạn query120ký tự, page nguyên dương và rate120/phút/actor; dữ liệu trả theo20 người/trang. Kế toán không tra cứu qua trường CCCD và DTO được che CCCD ngay trên server, không chỉ bằng CSS. Tìm tên/điện thoại/email là các trường đã được xem trong hồ sơ trước đó. Không đưa từ khóa/CCCD vào URL hoặc audit/log. Query/count/rows dùng read transaction RepeatableRead để phân trang nhất quán. Không thay ba vai trò hoặc quyền sửa hồ sơ/điểm danh.
