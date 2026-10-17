@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  username     String   @unique
+  role         UserRole @default(ADMIN)
+  active       Boolean @default(true)
+  sessions     Session[]
+  managedClasses Class[] @relation("ClassManager")
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+enum UserRole {
+  ADMIN
+  CLASS_MANAGER
+  ACCOUNTANT
+}
+
+model Session {
+  tokenHash String @id
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@index([userId])
+}
+
+model LoginAttempt {
+  key String @id
+  failures Int @default(0)
+  blockedUntil DateTime?
+}
+
+enum RegistrationMethod {
+  ONLINE
+  MANUAL
+  LATE
+}
+
+model RegistrationEvent {
+  id String @id @default(uuid())
+  registrationId String
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  actorId String
+  action String
+  details Json
+  createdAt DateTime @default(now())
+  @@index([registrationId])
+}
+
+model Setting {
+  id                 Int      @id @default(1)
+  bankName           String
+  accountName        String
+  accountNumber      String
+  transferSyntax     String
+  googleAnalyticsId  String?
+  facebookPixelId    String?
+  microsoftClarityId String?
+  updatedAt          DateTime @updatedAt
+}
+
+enum CourseType {
+  COMMUNITY_FIRST_AID
+  CME_ABCDE
+  AMBULANCE_DRIVER
+  CPR_ADVANCED
+  CPR_BASIC
+}
+
+enum TargetAudience {
+  DOCTOR
+  NURSE
+  PHYSICIAN
+  DRIVER
+  COMMUNITY
+}
+
+enum CertificateType {
+  CERTIFICATE
+  CONFIRMATION
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum RegistrationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ClassStatus {
+  OPEN
+  FULL
+  DONE
+}
+
+model Class {
+  id                   String            @id @default(uuid())
+  courseType           CourseType        @default(COMMUNITY_FIRST_AID)
+  code                 String            @unique
+  name                 String
+  courseBatch          String?           // VD: Khóa 1, Khóa 2
+  fee                  Float             @default(0) // Học phí
+  location             String            @default("") // Địa điểm học
+  startDate            DateTime          @default(now()) // Thời gian học (từ ngày)
+  endDate              DateTime          @default(now()) // Thời gian học (đến ngày)
+  startTime            String
+  endTime              String
+  registrationDeadline DateTime?         // Hạn đăng ký
+  totalLessons         Int               @default(0) // Tổng số tiết
+  targetAudiences      TargetAudience[]  // Đối tượng đăng ký
+  certificateType      CertificateType   @default(CERTIFICATE) // Loại chứng chỉ
+  capacity             Int               @default(40)
+  status               ClassStatus       @default(OPEN)
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  registrations        Registration[]
+  managerId            String?
+  manager              User? @relation("ClassManager", fields: [managerId], references: [id])
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
+model Registration {
+  id                String             @id @default(uuid())
+  classId           String
+  class             Class              @relation(fields: [classId], references: [id])
+  fullName          String
+  dob               DateTime
+  gender            Gender?            // Giới tính
+  phone             String
+  email             String?
+  organization      String?
+  printOrgOnCert    Boolean            @default(false)
+  cccd              String?            // CME required
+  workplace         String?            // CME required
+  idPhotoUrl        String?            // Upload path for CCCD/ID
+  degreeUrl         String?            // Upload path for professional degree
+  paymentReceiptUrl String?            // Upload path for transfer receipt
+  note              String?
+  paymentStatus     PaymentStatus      @default(PENDING)
+  status            RegistrationStatus @default(PENDING)
+  invoiceCode       String?            // HĐĐT tracking code
+  certificateCode   String?            // CME certificate number
+  registrationMethod RegistrationMethod @default(ONLINE)
+  createdById String?
+  requestKey String? @unique
+  receiptTokenHash String?
+  rejectionReason String?
+  confirmationNumber String?
+  certificateDeliveredDirect Boolean @default(false)
+  certificateSentByPost Boolean @default(false)
+  events RegistrationEvent[]
+  source            String?
+  sessionId         String?
+  createdAt         DateTime           @default(now())
+  @@index([classId, status, paymentStatus])
+}
+
+model TrackingEvent {
+  id        String   @id @default(uuid())
+  sessionId String
+  source    String?
+  eventName String
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([eventName])
+}

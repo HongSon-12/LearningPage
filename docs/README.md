@@ -20,11 +20,16 @@ Nơi phân tích sâu vào luồng xử lý kỹ thuật của từng tính năn
 - [Feature_Form_Va_Upload.md](./features/Feature_Form_Va_Upload.md): Tính năng xử lý Form đăng ký động và Upload hồ sơ (CCCD, Bằng cấp).
 - [Feature_Gui_Email_Tu_Dong.md](./features/Feature_Gui_Email_Tu_Dong.md): Hệ thống SMTP gửi 4 kịch bản Email (B, C, D, E).
 - [Feature_Tra_Cuu.md](./features/Feature_Tra_Cuu.md): Tính năng hỗ trợ học viên tự tra cứu Hóa đơn điện tử và Số Chứng Chỉ.
+- [Feature_Cap_Nhat_Quan_Ly_Hoc_Vien_Va_Landing_Page.md](./features/Feature_Cap_Nhat_Quan_Ly_Hoc_Vien_Va_Landing_Page.md): Yêu cầu cập nhật chuyển lớp, đăng ký thủ công/vét, quản lý học viên, phân quyền, Landing Page, kiểm soát sĩ số và Import/Export Excel.
 
 ## 4. Đặc Tả Giao Diện (`/ui_ux`)
 Nơi lưu trữ các quy chuẩn về thiết kế và cấu trúc giao diện.
 - [admin_ui_spec.md](./ui_ux/admin_ui_spec.md): Đặc tả màn hình Dashboard dành cho Admin.
 - [user_ui_spec.md](./ui_ux/user_ui_spec.md): Đặc tả giao diện phía Học viên (User-facing).
+
+## Báo cáo tiến độ hiện tại
+
+- [BAO_CAO_TIEN_DO_DU_AN.md](./BAO_CAO_TIEN_DO_DU_AN.md): Tổng hợp phần đã triển khai, kết quả kiểm tra ngày 17/10/2026, giới hạn hiện tại và checklist nghiệm thu tiếp theo.
 
 ## 5. Theo Dõi Tiến Độ (`/tasks`)
 Nơi chứa các checklist công việc đang hoặc sắp diễn ra.

@@ -1,0 +1,12 @@
+import Link from "next/link";
+import { programs, type ProgramType } from "@/lib/programs";
+import RelatedCourses from "./RelatedCourses";
+type ClassInfo={id:string;name:string;code:string;location:string;startDate:Date;endDate:Date;fee:number;capacity:number;status:string;registrationDeadline:Date|null;_count:{registrations:number}};
+export default function ProgramLanding({type,course}:{type:ProgramType;course?:ClassInfo}) {
+ const program=programs[type];const remaining=course?Math.max(0,course.capacity-course._count.registrations):0;
+ const canRegister=course?.status==="OPEN"&&remaining>0&&(!course.registrationDeadline||course.registrationDeadline>=new Date());
+ return <div className="space-y-16"><section className={`rounded-3xl bg-gradient-to-br ${program.gradient} text-white p-8 md:p-16`}><p className="tracking-widest text-sm font-bold opacity-80">{program.eyebrow}</p><h1 className="text-4xl md:text-6xl font-extrabold mt-6 max-w-4xl leading-tight">{program.headline}</h1><p className="text-lg mt-6 max-w-2xl opacity-90">{program.description}</p><p className="mt-6 font-semibold">{program.audience}</p><Link href={course&&canRegister?`/register/${course.id}`:`/hocsocapcuu/courses?type=${type}`} className="inline-block mt-8 px-6 py-4 bg-white text-gray-900 font-bold rounded-xl">{course&&canRegister?"Đăng ký lớp này":"Xem lịch khai giảng"}</Link></section>
+ {course&&<section className="bg-white border rounded-2xl p-8 space-y-3"><h2 className="text-2xl font-bold">{course.name}</h2><p>Mã lớp: {course.code}</p><p>{course.startDate.toLocaleDateString("vi-VN")} – {course.endDate.toLocaleDateString("vi-VN")}</p><p>Địa điểm: {course.location}</p><p className="font-bold">Học phí: {course.fee.toLocaleString("vi-VN")} đ</p><p>{course._count.registrations}/{course.capacity} học viên · {remaining} chỗ còn lại</p>{!canRegister&&<p className="text-amber-700">Lớp hiện không nhận đăng ký. Bạn có thể xem các lớp liên quan bên dưới.</p>}</section>}
+ <section className="space-y-6"><h2 className="text-3xl font-bold">Trọng tâm chương trình</h2><div className="grid md:grid-cols-3 gap-6">{program.modules.map((module,i)=><article key={module} className="p-8 bg-white rounded-2xl border"><span className="text-4xl font-black text-blue-100">0{i+1}</span><h3 className="text-xl font-bold mt-4">{module}</h3></article>)}</div><p className="text-gray-600">Nội dung chi tiết và điều kiện tuyển sinh áp dụng theo thông báo của từng lớp.</p></section>
+ <RelatedCourses type={type} excludeId={course?.id}/></div>;
+}
