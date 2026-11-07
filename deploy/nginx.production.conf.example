@@ -1,0 +1,49 @@
+# Merge these locations into your EXISTING HTTPS server block.
+# Keep your current server_name, TLS certificates and HTTP->HTTPS redirect.
+# Existing Nginx container joins PROXY_NETWORK=cap-cuu-115_private.
+# Compose gives the edu web service the unique alias edu-app on that network.
+# Reload Nginx after app is healthy when updating its container.
+# If using a CDN, configure real_ip from ONLY its trusted IP ranges first.
+
+# Put these two zones in the nginx http context (outside server blocks):
+# limit_req_zone $binary_remote_addr zone=learning_lookup:10m rate=10r/m;
+# limit_req_zone $binary_remote_addr zone=learning_upload:10m rate=20r/m;
+
+# Inside your existing HTTPS server block:
+client_max_body_size 6m;
+server_tokens off;
+add_header Strict-Transport-Security "max-age=31536000" always;
+
+location ^~ /uploads/ { return 404; }
+# Readiness is for internal monitoring only.
+location ^~ /api/health/ { return 404; }
+
+location = /search {
+    limit_req zone=learning_lookup burst=10 nodelay;
+    limit_req_status 429;
+    proxy_pass http://edu-app:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+}
+location = /api/upload {
+    limit_req zone=learning_upload burst=5 nodelay;
+    limit_req_status 429;
+    proxy_pass http://edu-app:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+location / {
+    proxy_pass http://edu-app:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_buffering off;
+    proxy_read_timeout 60s;
+}

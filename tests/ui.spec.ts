@@ -19,6 +19,7 @@ const usernames = {
 const users: string[] = [];
 const classIds: string[] = [];
 const extraCodes = [`NEW-${runId}`];
+let classManagerId = "";
 let rosterClass = "";
 let outsideClass = "";
 let firstStudent = "";
@@ -30,7 +31,7 @@ async function login(page: Page, role: keyof typeof usernames = "ADMIN") {
   await page
     .getByRole("button", { name: "Đăng nhập hệ thống", exact: true })
     .click();
-  await expect(page).toHaveURL(role === "ADMIN" ? "/" : "/registrations");
+  await expect(page).toHaveURL("/");
 }
 async function noOverflow(page: Page) {
   expect(
@@ -57,7 +58,7 @@ test.beforeAll(async () => {
       data: { username: usernames[role], passwordHash, role },
     });
     users.push(user.id);
-    if (role === "CLASS_MANAGER") manager = user.id;
+    if (role === "CLASS_MANAGER") {manager = user.id;classManagerId = user.id;}
   }
   for (let i = 1; i <= 12; i++) {
     const course = await prisma.class.create({
@@ -171,6 +172,14 @@ test("course filters, sort, pagination, columns and CRUD form", async ({
   await login(page);
   await page.goto("/courses");
   await page.getByLabel("Tìm lớp học", { exact: true }).fill(prefix);
+  for(const width of [390,1366,1866]){
+    await page.setViewportSize({width,height:938});
+    const filters=page.getByRole("search",{name:"Bộ lọc lớp học"});
+    await expect(filters).toBeVisible();await noOverflow(page);
+    if(width===1866){const boxes=await Promise.all(["Tìm lớp học","Chương trình","Trạng thái","Khai giảng từ","Đến ngày"].map(name=>filters.getByLabel(name,{exact:true}).boundingBox()));expect(Math.max(...boxes.map(box=>box!.y))-Math.min(...boxes.map(box=>box!.y))).toBeLessThan(2);}
+    await page.screenshot({path:`.local/ui-phase1/course-filters-${width}.png`,fullPage:true});
+  }
+  await page.setViewportSize({width:1440,height:900});
   await expect(page.getByText("12 lớp học", { exact: true })).toBeVisible();
   await expect(page.locator("tbody tr")).toHaveCount(10);
   await chooseSelect(
@@ -225,7 +234,7 @@ test("course filters, sort, pagination, columns and CRUD form", async ({
     page.getByRole("columnheader", { name: "Học viên", exact: true }),
   ).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Thêm Khóa học", exact: true })
+    .getByRole("button", { name: "Tạo lớp", exact: true })
     .click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -245,9 +254,10 @@ test("course filters, sort, pagination, columns and CRUD form", async ({
     .getByRole("textbox", { name: "Giờ kết thúc", exact: true })
     .fill("12:00");
   await dialog.getByLabel("Sĩ số tối đa").fill("41");
+  await chooseSelect(page,dialog.getByRole("combobox",{name:"Người phụ trách",exact:true}),classManagerId);
   await dialog.getByRole("checkbox", { name: "Bác sĩ", exact: true }).check();
   await dialog
-    .getByRole("button", { name: "Lưu Khóa Học", exact: true })
+    .getByRole("button", { name: "Tạo lớp", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
   await expect
@@ -260,6 +270,7 @@ test("course filters, sort, pagination, columns and CRUD form", async ({
   const created = await prisma.class.findUniqueOrThrow({
     where: { code: extraCodes[0] },
   });
+  expect(created.managerId).toBe(classManagerId);
   expect(created.fee).toBe(350000);
   expect(created.targetAudiences).toContain("DOCTOR");
   await page.getByLabel("Tìm lớp học", { exact: true }).fill(extraCodes[0]);
@@ -268,7 +279,7 @@ test("course filters, sort, pagination, columns and CRUD form", async ({
     .click();
   await dialog.getByLabel("Tên lớp").fill(`Edited ${runId}`);
   await dialog
-    .getByRole("button", { name: "Lưu thay đổi", exact: true })
+    .getByRole("button", { name: "Lưu", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
   await expect(page.locator("tbody")).toContainText(`Edited ${runId}`);
@@ -308,6 +319,11 @@ test("roster table, profile tabs, reject guard and payment action", async ({
     .getByRole("textbox", { name: "Tra cứu học viên", exact: true })
     .fill("UI Student 01");
   await expect(page.locator("tbody tr")).toHaveCount(1);
+  await expect(page.getByRole("columnheader",{name:"Thanh toán",exact:true})).toHaveCount(0);
+  await page.getByRole("navigation",{name:"Công việc của lớp"}).getByRole("link",{name:"Chứng từ",exact:true}).click();
+  await expect(page.getByRole("columnheader",{name:"Hóa đơn",exact:true})).toBeVisible();
+  await page.getByRole("textbox",{name:"Tra cứu học viên",exact:true}).fill("UI Student 01");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
   await chooseSelect(
     page,
     page.getByRole("combobox", {
@@ -326,12 +342,16 @@ test("roster table, profile tabs, reject guard and payment action", async ({
         ).paymentStatus,
     )
     .toBe("PAID");
+  await page.getByRole("navigation",{name:"Công việc của lớp"}).getByRole("link",{name:"Học viên",exact:true}).click();
+  await expect(page.getByRole("columnheader",{name:"Liên hệ",exact:true})).toBeVisible();
+  await page.getByRole("textbox",{name:"Tra cứu học viên",exact:true}).fill("UI Student 01");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
   await page.getByRole("button", { name: "Chi tiết", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(
     dialog.getByRole("button", { name: "Từ chối", exact: true }),
   ).toBeDisabled();
-  for (const tab of ["Chuyển lớp", "Chứng từ", "Lịch sử", "Thông tin & hồ sơ"])
+  for (const tab of ["Chuyển lớp", "Chứng từ", "Lịch sử", "Hồ sơ"])
     await dialog.getByRole("button", { name: tab, exact: true }).click();
   await dialog
     .getByRole("button", { name: "Duyệt hồ sơ", exact: true })
@@ -363,10 +383,10 @@ test("manager and accountant keep their allowed UI and assigned scope", async ({
   await login(page, "CLASS_MANAGER");
   await page.goto("/courses");
   await expect(
-    page.getByRole("button", { name: "Thêm Khóa học", exact: true }),
+    page.getByRole("button", { name: "Tạo lớp", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("link", { name: "Tài khoản & Phân quyền", exact: true }),
+    page.getByRole("link", { name: "Tài khoản", exact: true }),
   ).toHaveCount(0);
   const response = await page.goto(`/courses/${outsideClass}`);
   expect(response?.status()).toBe(404);
@@ -379,7 +399,7 @@ test("manager and accountant keep their allowed UI and assigned scope", async ({
   await page.goto(`/courses/${rosterClass}`);
   await expect(
     page.getByRole("button", {
-      name: "Thêm học viên / Đăng ký vét",
+      name: "Thêm học viên",
       exact: true,
     }),
   ).toHaveCount(0);
@@ -438,7 +458,7 @@ test("mobile menu, no page overflow and dialog keyboard focus", async ({
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Thêm Khóa học", exact: true })
+    .getByRole("button", { name: "Tạo lớp", exact: true })
     .click();
   for (let i = 0; i < 30; i++) {
     await page.keyboard.press("Tab");
@@ -454,6 +474,95 @@ test("mobile menu, no page overflow and dialog keyboard focus", async ({
   });
   await page.keyboard.press("Escape");
   await expect(
-    page.getByRole("button", { name: "Thêm Khóa học", exact: true }),
+    page.getByRole("button", { name: "Tạo lớp", exact: true }),
   ).toBeFocused();
+});
+
+
+test("class roster reuses initial data without duplicate requests and supports filter reset", async({page})=>{
+  await login(page);
+  const posts:string[]=[];
+  page.on("request",request=>{if(request.method()==="POST" && new URL(request.url()).pathname===`/courses/${rosterClass}`)posts.push(request.url());});
+  await page.goto(`/courses/${rosterClass}`);
+  await expect(page.getByRole("textbox",{name:"Tra cứu học viên",exact:true})).toBeVisible();
+  await page.waitForTimeout(400);
+  expect(posts).toHaveLength(0);
+  const query=page.getByRole("textbox",{name:"Tra cứu học viên",exact:true});
+  await query.fill("UI Student 01");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await query.fill("");
+  await expect(page.locator("tbody tr")).toHaveCount(10);
+  await query.fill("UI Student 01");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+});
+
+test("class workspace connects lifecycle, documents and role-specific edits", async({page})=>{
+  await login(page);
+  await page.goto("/courses");
+  await page.getByLabel("Tìm lớp học",{exact:true}).fill(prefix);
+  await page.getByRole("button",{name:/^Sắp học/}).click();
+  await expect(page.locator("tbody tr")).toHaveCount(10);
+  await page.getByRole("button",{name:/^Đang học/}).click();
+  await expect(page.getByText("Không có lớp phù hợp",{exact:true})).toBeVisible();
+  await page.goto(`/courses/${rosterClass}`);
+  await page.locator('[data-slot="class-overview"]').evaluate(node=>{node.setAttribute("data-persist-probe","keep");});
+  const overview=await page.locator('[data-slot="class-overview"]').boundingBox();
+  const summary=await page.locator('[data-slot="class-overview"]').innerText();
+  for(const label of ["Buổi học","Chứng từ","Thông tin","Học viên"]){
+    await page.getByRole("navigation",{name:"Công việc của lớp"}).getByRole("link",{name:label,exact:true}).click();
+    if(label === "Buổi học") await expect(page.getByRole("button",{name:"Tạo buổi học",exact:true})).toBeVisible();
+    else if(label === "Chứng từ") await expect(page.getByRole("columnheader",{name:"Hóa đơn",exact:true})).toBeVisible();
+    else if(label === "Thông tin") await expect(page.getByRole("heading",{name:"Thông tin lớp",exact:true})).toBeVisible();
+    else await expect(page.getByRole("columnheader",{name:"Liên hệ",exact:true})).toBeVisible();
+    await expect(page.locator('[data-slot="class-overview"]')).toHaveAttribute("data-persist-probe","keep");
+    await expect(page.locator('[data-slot="class-overview"]')).toHaveText(summary,{useInnerText:true});
+    const bounds=await page.locator('[data-slot="class-overview"]').boundingBox();
+    expect(bounds!.y).toBe(overview!.y);expect(bounds!.height).toBe(overview!.height);
+  }
+  await page.getByRole("navigation",{name:"Công việc của lớp"}).getByRole("link",{name:"Chứng từ",exact:true}).click();
+  await expect(page.getByRole("navigation",{name:"Công việc của lớp"})).toBeVisible();
+  await expect(page.getByRole("columnheader",{name:"Hóa đơn",exact:true})).toBeVisible();
+  await page.getByRole("textbox",{name:"Tra cứu học viên",exact:true}).fill("UI Student 01");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+  await page.getByRole("button",{name:"Cập nhật",exact:true}).click();
+  const dialog=page.getByRole("dialog");
+  await dialog.getByLabel("Mã hóa đơn điện tử",{exact:true}).fill(`INV-${runId}`);
+  await dialog.getByLabel("Số GCN / Chứng chỉ",{exact:true}).fill(`GCN-${runId}`);
+  await dialog.getByRole("button",{name:"Lưu chứng từ",exact:true}).click();
+  await expect.poll(async()=>(await prisma.registration.findUniqueOrThrow({where:{id:firstStudent}})).invoiceCode).toBe(`INV-${runId}`);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("tbody")).toContainText(`INV-${runId}`);
+  await chooseSelect(page,page.getByRole("combobox",{name:"Lọc chứng từ",exact:true}),"invoice");
+  await expect(page.getByText("Không có hồ sơ phù hợp",{exact:true})).toBeVisible();
+  await chooseSelect(page,page.getByRole("combobox",{name:"Lọc chứng từ",exact:true}),"");
+  for(const width of [390,1440]){
+    await page.setViewportSize({width,height:938}); await noOverflow(page);
+    await page.locator("#admin-main").evaluate(node=>node.scrollTo({top:0}));
+    await page.screenshot({path:`.local/ui-phase1/class-documents-${width}.png`,fullPage:true});
+  }
+  await page.goto(`/courses/${rosterClass}?tab=info`);
+  await page.emulateMedia({colorScheme:"dark"});
+  await expect(page.getByRole("combobox",{name:"Người phụ trách",exact:true})).toBeVisible();
+  for(const control of [page.getByLabel("Tên lớp"),page.getByRole("textbox",{name:"Ngày bắt đầu",exact:true}),page.getByRole("combobox",{name:"Người phụ trách",exact:true})])
+    await expect(control).toHaveCSS("background-color","rgb(255, 255, 255)");
+  await page.screenshot({path:".local/ui-phase1/class-info-1440.png",fullPage:true});
+  await page.emulateMedia({colorScheme:"light"});
+  for(const role of ["CLASS_MANAGER","ACCOUNTANT"] as const){
+    await page.context().clearCookies();await login(page,role);
+    await page.goto(`/courses/${rosterClass}?tab=documents`);
+    await page.getByRole("textbox",{name:"Tra cứu học viên",exact:true}).fill("UI Student 01");
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+    await page.getByRole("button",{name:"Cập nhật",exact:true}).click();
+    const form=page.getByRole("dialog");
+    if(role==="CLASS_MANAGER"){
+      await expect(form.getByLabel("Mã hóa đơn điện tử",{exact:true})).toBeDisabled();
+      await expect(form.getByLabel("Số GCN / Chứng chỉ",{exact:true})).toBeEnabled();
+    } else {
+      await expect(form.getByLabel("Mã hóa đơn điện tử",{exact:true})).toBeEnabled();
+      await expect(form.getByLabel("Số GCN / Chứng chỉ",{exact:true})).toBeDisabled();
+    }
+    await page.keyboard.press("Escape");
+    await page.goto(`/courses/${rosterClass}?tab=info`);
+    await expect(page.getByRole("combobox",{name:"Người phụ trách",exact:true})).toHaveCount(0);
+  }
 });

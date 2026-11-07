@@ -1,3 +1,4 @@
+import {RequestError} from "@/lib/errors";
 import type { Prisma } from "@prisma/client";
 import { canonicalCccd } from "@/lib/student-identity";
 import type { Actor } from "@/lib/permissions";
@@ -6,6 +7,12 @@ export function studentScope(actor: Actor): Prisma.StudentWhereInput {
   return actor.role !== "ADMIN"
     ? { registrations: { some: { class: classScope(actor) } } }
     : {};
+}
+export async function lockStudentIdentities(tx:Prisma.TransactionClient, identities:(string|null)[]) {
+  for(const cccd of [...new Set(identities.filter((value):value is string=>!!value))].sort()) {
+    const key=`ttcc:${process.env.DATABASE_SCHEMA || "public"}:student:${cccd}`;
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${key}))`;
+  }
 }
 export async function studentForRegistration(
   tx: Prisma.TransactionClient,
@@ -19,12 +26,13 @@ export async function studentForRegistration(
   previousStudentId?: string | null,
 ) {
   const cccd = canonicalCccd(data.cccd);
+  await lockStudentIdentities(tx,[cccd]);
   if (previousStudentId) {
     const previous = await tx.student.findUnique({
       where: { id: previousStudentId },
     });
     if (previous?.cccd && previous.cccd !== cccd)
-      throw new Error(
+      throw new RequestError(
         "Sửa CCCD tại hồ sơ học viên sau khi đối chiếu; không đổi định danh qua Excel.",
       );
   }

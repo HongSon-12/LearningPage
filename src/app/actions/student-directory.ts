@@ -1,5 +1,5 @@
 "use server";
-import { requireUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import {
   queryStudentDirectory,
   type StudentDirectoryFilter,
@@ -8,7 +8,7 @@ import { errorMessage } from "@/lib/admissions";
 import { rateLimit } from "@/lib/security";
 export async function searchStudentDirectory(input: StudentDirectoryFilter) {
   try {
-    const actor = await requireUser();
+    const actor = await requirePermission("students.view");
     await rateLimit("student-directory", actor.id, 120, 60000);
     return {
       success: true as const,

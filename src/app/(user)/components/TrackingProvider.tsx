@@ -4,8 +4,9 @@ import { useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useSearchParams } from "next/navigation";
 import { trackEvent } from "@/app/actions/tracking";
+import { trackingSource } from "@/lib/tracking-input";
 
-export default function TrackingProvider({ children }: { children: React.ReactNode }) {
+export default function TrackingProvider() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -19,7 +20,7 @@ export default function TrackingProvider({ children }: { children: React.ReactNo
     // 2. Setup Source UTM
     const sourceParam = searchParams.get("source");
     if (sourceParam) {
-      sessionStorage.setItem("ttcc_source", sourceParam);
+      sessionStorage.setItem("ttcc_source", trackingSource(sourceParam));
     } else if (!sessionStorage.getItem("ttcc_source") && document.referrer) {
       // Bắt Referer tự động
       const ref = document.referrer.toLowerCase();
@@ -31,11 +32,12 @@ export default function TrackingProvider({ children }: { children: React.ReactNo
         sessionStorage.setItem("ttcc_source", "google");
       }
     }
-    const currentSource = sessionStorage.getItem("ttcc_source") || "direct";
+    const currentSource = trackingSource(sessionStorage.getItem("ttcc_source") || "direct");
+    sessionStorage.setItem("ttcc_source",currentSource);
 
     // 3. Track Page Load event immediately
     trackEvent(sessionId, currentSource, "page_load");
   }, [searchParams]);
 
-  return <>{children}</>;
+  return null;
 }

@@ -26,5 +26,5 @@ export default async function AdminSettingsPage() {
     };
   }
 
-  return <div className="w-full min-w-0 space-y-4"><PageHeader title="Cấu hình hệ thống" description="Quản lý thông tin thanh toán và nội dung chuyển khoản hiển thị cho học viên." icon={Settings}/><SettingsForm initialData={settings}/></div>;
+  return <div className="w-full min-w-0 space-y-4"><PageHeader title="Cấu hình hệ thống" description="Quản lý tài khoản ngân hàng thụ hưởng hiển thị cho học viên." icon={Settings}/><SettingsForm initialData={settings}/></div>;
 }

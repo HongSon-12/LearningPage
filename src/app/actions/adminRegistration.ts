@@ -1,24 +1,32 @@
 "use server";
+import {RequestError} from "@/lib/errors";
+
+import { invalidatePublicClasses } from "@/lib/public-classes";
+import { assertPermission, can } from "@/lib/permissions";
+import { transactionPermission, freshActor } from "@/lib/rbac";
 import { transferInTransaction } from "@/lib/transfers";
 import { PaymentStatus, RegistrationStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import {
   requireUser,
-  classScope,
   assertClassAccess,
   type Actor,
 } from "@/lib/auth";
 import {
   addRegistration,
   availableClass,
+  lockClasses,
   occupiedWhere,
   errorMessage,
   rosterTransaction,
   type RegistrationInput,
 } from "@/lib/admissions";
 import type { Prisma } from "@prisma/client";
+import { queryRegistrationPage } from "@/lib/registration-page";
+import { registrationFilter } from "@/lib/registration-filter";
 function refresh() {
+  invalidatePublicClasses();
   revalidatePath("/", "layout");
   revalidatePath("/courses", "layout");
   revalidatePath("/hocsocapcuu/courses");
@@ -44,33 +52,17 @@ async function registrationFor(
     where: { id },
     include: { class: true },
   });
-  if (!reg) throw new Error("Không tìm thấy hồ sơ.");
+  if (!reg) throw new RequestError("Không tìm thấy hồ sơ.");
+  await lockClasses(tx, [reg.classId]);
   assertClassAccess(user, reg.class);
   return reg;
 }
 export async function getRegistrations(classId?: string) {
   try {
     const user = await requireUser();
-    const data = await prisma.registration.findMany({
-      where: { class: classScope(user), ...(classId ? { classId } : {}) },
-      orderBy: { createdAt: "desc" },
-      omit: { receiptTokenHash: true, requestKey: true },
-      include: { class: true, events: { orderBy: { createdAt: "desc" } } },
-    });
-    return {
-      success: true,
-      data: data.map((row) =>
-        user.role === "ACCOUNTANT"
-          ? {
-              ...row,
-              idPhotoUrl: null,
-              degreeUrl: null,
-              idPhotoFileId: null,
-              degreeFileId: null,
-            }
-          : row,
-      ),
-    };
+    assertPermission(user, "registrations.view");
+    const page=await queryRegistrationPage(user,{...registrationFilter,classId:classId || ""});
+    return {success:true as const,data:page.items};
   } catch (error) {
     return { success: false, error: errorMessage(error) };
   }
@@ -80,10 +72,12 @@ export async function createManualRegistration(
   method: "MANUAL" | "LATE",
 ) {
   try {
-    const user = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    let user = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    assertPermission(user, "registrations.create");
     if (!["MANUAL", "LATE"].includes(method))
-      throw new Error("Hình thức đăng ký không hợp lệ.");
+      throw new RequestError("Hình thức đăng ký không hợp lệ.");
     await rosterTransaction(async (tx) => {
+      user = await transactionPermission(tx, user, "registrations.create");
       const course = await tx.class.findUniqueOrThrow({
         where: { id: data.classId },
       });
@@ -104,10 +98,12 @@ export async function transferRegistration(
 ) {
   try {
     const user = await requireUser(["ADMIN", "CLASS_MANAGER"]);
-    if (!reason.trim()) throw new Error("Vui lòng nhập lý do chuyển lớp.");
-    await rosterTransaction((tx) =>
-      transferInTransaction(tx, user, id, classId, reason),
-    );
+    assertPermission(user, "registrations.transfer");
+    if (!reason.trim()) throw new RequestError("Vui lòng nhập lý do chuyển lớp.");
+    await rosterTransaction(async (tx) => {
+      const current = await transactionPermission(tx, user, "registrations.transfer");
+      return transferInTransaction(tx, current, id, classId, reason);
+    });
     refresh();
     return { success: true };
   } catch (error) {
@@ -119,10 +115,12 @@ export async function updatePaymentStatus(
   paymentStatus: PaymentStatus,
 ) {
   try {
-    const user = await requireUser(["ADMIN", "ACCOUNTANT"]);
+    let user = await requireUser(["ADMIN", "ACCOUNTANT"]);
+    assertPermission(user, "payments.manage");
     if (!Object.values(PaymentStatus).includes(paymentStatus))
-      throw new Error("Trạng thái không hợp lệ.");
+      throw new RequestError("Trạng thái không hợp lệ.");
     await rosterTransaction(async (tx) => {
+      user = await transactionPermission(tx, user, "payments.manage");
       const reg = await registrationFor(tx, id, user);
       if (
         reg.paymentStatus === "CANCELLED" &&
@@ -141,7 +139,7 @@ export async function updatePaymentStatus(
             },
           }))
         )
-          throw new Error("Học viên đã có hồ sơ hoạt động trong lớp.");
+          throw new RequestError("Học viên đã có hồ sơ hoạt động trong lớp.");
       }
       await tx.registration.update({ where: { id }, data: { paymentStatus } });
       await record(tx, id, user, "PAYMENT", {
@@ -161,12 +159,14 @@ export async function updateRegistrationStatus(
   rejectionReason = "",
 ) {
   try {
-    const user = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    let user = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    assertPermission(user, "registrations.review");
     if (!Object.values(RegistrationStatus).includes(status))
-      throw new Error("Trạng thái không hợp lệ.");
+      throw new RequestError("Trạng thái không hợp lệ.");
     if (status === "REJECTED" && !rejectionReason.trim())
-      throw new Error("Vui lòng nhập lý do từ chối.");
+      throw new RequestError("Vui lòng nhập lý do từ chối.");
     await rosterTransaction(async (tx) => {
+      user = await transactionPermission(tx, user, "registrations.review");
       const reg = await registrationFor(tx, id, user);
       if (
         reg.status === "REJECTED" &&
@@ -185,7 +185,7 @@ export async function updateRegistrationStatus(
             },
           }))
         )
-          throw new Error("Học viên đã có hồ sơ hoạt động trong lớp.");
+          throw new RequestError("Học viên đã có hồ sơ hoạt động trong lớp.");
       }
       await tx.registration.update({
         where: { id },
@@ -226,7 +226,8 @@ export async function updateRegistrationCodes(
   certificateSentByPost = false,
 ) {
   try {
-    const user = await requireUser();
+    let user = await requireUser();
+    if (!can(user, "invoices.manage") && !can(user, "certificates.manage")) throw new RequestError("Bạn không có quyền thực hiện thao tác này.");
     const reg = await prisma.registration.findUniqueOrThrow({
       where: { id },
       include: { class: true },
@@ -236,7 +237,7 @@ export async function updateRegistrationCodes(
       user.role === "CLASS_MANAGER" &&
       invoiceCode !== (reg.invoiceCode || "")
     )
-      throw new Error("Chỉ Kế toán/Quản trị được sửa mã hóa đơn.");
+      throw new RequestError("Chỉ Kế toán/Quản trị được sửa mã hóa đơn.");
     if (
       user.role === "ACCOUNTANT" &&
       (certificateCode !== (reg.certificateCode || "") ||
@@ -244,15 +245,21 @@ export async function updateRegistrationCodes(
         certificateDeliveredDirect !== reg.certificateDeliveredDirect ||
         certificateSentByPost !== reg.certificateSentByPost)
     )
-      throw new Error("Kế toán chỉ được sửa thông tin hóa đơn.");
+      throw new RequestError("Kế toán chỉ được sửa thông tin hóa đơn.");
     await rosterTransaction(async (tx) => {
+      user = await freshActor(user, tx);
+      const currentReg = await registrationFor(tx, id, user);
+      if (!can(user, "invoices.manage") && !can(user, "certificates.manage")) throw new RequestError("Bạn không có quyền thực hiện thao tác này.");
+      if (!can(user, "invoices.manage") && invoiceCode !== (currentReg.invoiceCode || "")) throw new RequestError("Không có quyền sửa hóa đơn.");
+      if (!can(user, "certificates.manage") && (certificateCode !== (currentReg.certificateCode || "") || confirmationNumber !== (currentReg.confirmationNumber || "") || certificateDeliveredDirect !== currentReg.certificateDeliveredDirect || certificateSentByPost !== currentReg.certificateSentByPost)) throw new RequestError("Không có quyền sửa chứng chỉ / giấy xác nhận.");
+
       await tx.registration.update({
         where: { id },
         data: {
-          ...(user.role !== "CLASS_MANAGER"
+          ...(user.role !== "CLASS_MANAGER" && can(user, "invoices.manage")
             ? { invoiceCode: invoiceCode.trim() || null }
             : {}),
-          ...(user.role !== "ACCOUNTANT"
+          ...(user.role !== "ACCOUNTANT" && can(user, "certificates.manage")
             ? {
                 certificateCode: certificateCode.trim() || null,
                 confirmationNumber: confirmationNumber.trim() || null,

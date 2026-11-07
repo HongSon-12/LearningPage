@@ -1,5 +1,6 @@
 import { chooseSelect } from "./controls-helper";
 import "dotenv/config";
+import sharp from "sharp";
 import { test, expect } from "@playwright/test";
 import { randomUUID, randomInt } from "node:crypto";
 import { mkdir } from "node:fs/promises";
@@ -22,7 +23,7 @@ const lookupCccd =
 const runStartedAt = new Date();
 const cap = randomUUID() + randomUUID();
 const png = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=",
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAD0lEQVQImWP4jwMwDC0JALoev0GybL49AAAAAElFTkSuQmCC",
   "base64",
 );
 const origin = "http://localhost:3101";
@@ -210,7 +211,9 @@ test("private upload/download HTTP boundary, revoked session and export audit", 
     expect(result.headers()["content-disposition"]).toContain("attachment;");
     expect(result.headers()["x-content-type-options"]).toBe("nosniff");
     expect(result.headers()["content-security-policy"]).toContain("sandbox");
-    expect(await result.body()).toEqual(png);
+    const downloaded=await result.body();
+    expect(await sharp(downloaded).raw().toBuffer()).toEqual(await sharp(png).rotate().raw().toBuffer());
+    expect((await sharp(downloaded).metadata()).exif).toBeUndefined();
   }
   expect(
     (
@@ -345,7 +348,7 @@ test("student dossier enforces class history scope and admin-only canonical cont
   expect(scoped.status()).toBe(200);
   const html = await scoped.text();
   expect(html).not.toContain("SYNTHETIC-CERT");
-  expect(html).not.toContain("Lưu hồ sơ đã đối chiếu");
+  expect(html).not.toContain("Lưu hồ sơ");
   const outsideStudent = await prisma.student.create({
     data: {
       fullName: "Outside Student",
@@ -385,7 +388,7 @@ test("student dossier enforces class history scope and admin-only canonical cont
   const submitted = page.waitForRequest(
     (req) => req.method() === "POST" && Boolean(req.headers()["next-action"]),
   );
-  await page.getByRole("button", { name: "Lưu hồ sơ đã đối chiếu" }).click();
+  await page.getByRole("button", { name: "Lưu hồ sơ" }).click();
   const mutation = await submitted;
   await expect(page.getByRole("status")).toContainText("Đã lưu hồ sơ học viên");
   expect(
@@ -465,7 +468,11 @@ test("public wizard binds staged identity and receipt files without requiring em
       response.url().endsWith("/api/upload") &&
       response.request().method() === "POST",
   );
-  await page.locator('input[type="file"]').first().setInputFiles({
+  const idGroup=page.getByRole("group",{name:"Ảnh mặt trước CCCD (Tùy chọn)",exact:true});
+  await idGroup.getByRole("button").click();
+  const picker=page.getByRole("dialog");await expect(picker.getByRole("button",{name:"Chụp ảnh",exact:true})).toBeVisible();
+  const chooserPromise=page.waitForEvent("filechooser");await picker.getByRole("button",{name:"Tải lên",exact:true}).click();
+  await (await chooserPromise).setFiles({
     name: "identity.png",
     mimeType: "image/png",
     buffer: png,
@@ -474,7 +481,7 @@ test("public wizard binds staged identity and receipt files without requiring em
   expect(identity.success).toBe(true);
   fileIds.push(identity.fileId);
   await expect(
-    page.getByText("Đã tải lên CCCD", { exact: true }),
+    idGroup.getByText("Đã tải lên · Bấm để đổi", { exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "Xác nhận và tiếp tục thanh toán" })
@@ -494,13 +501,13 @@ test("public wizard binds staged identity and receipt files without requiring em
       response.request().method() === "POST",
   );
   await page
-    .locator('input[type="file"]')
+    .getByLabel('Tải file Biên lai chuyển khoản (Tùy chọn)',{exact:true})
     .setInputFiles({ name: "receipt.png", mimeType: "image/png", buffer: png });
   const receipt = await (await receiptResponse).json();
   expect(receipt.success).toBe(true);
   fileIds.push(receipt.fileId);
   await expect(
-    page.getByText("Đã tải lên Biên lai", { exact: true }),
+    page.getByRole("group",{name:"Biên lai chuyển khoản (Tùy chọn)",exact:true}).getByText("Đã tải lên · Bấm để đổi", { exact: true }),
   ).toBeVisible();
   expect(
     (await prisma.registration.findUniqueOrThrow({ where: { id: reg.id } }))
@@ -590,4 +597,33 @@ test("returning student verifies email before prefill and can edit the new regis
   await page.getByRole("textbox", { name: "Số CCCD", exact: true }).fill(cccd);
   await page.getByRole("button", { name: "Tự điền thông tin", exact: true }).click();
   await expect(page.getByRole("textbox", { name: "Họ và tên", exact: true })).toHaveValue("");
+});
+
+test("document picker validates files, camera capture cleans up and upload remains available",async({page})=>{
+ await page.route("**/*",route=>new URL(route.request().url()).hostname==="localhost"?route.continue():route.abort());
+ await page.addInitScript(()=>{
+  const state={stops:0};Object.assign(window,{uploadCamera:state});
+  Object.defineProperty(navigator,"mediaDevices",{configurable:true,value:{getUserMedia:async()=>{
+   const canvas=document.createElement("canvas");canvas.width=640;canvas.height=480;const context=canvas.getContext("2d")!;context.fillStyle="white";context.fillRect(0,0,640,480);const stream=canvas.captureStream(12);const timer=setInterval(()=>context.fillRect(0,0,640,480),60);
+   for(const track of stream.getTracks()){const stop=track.stop.bind(track);track.stop=()=>{state.stops++;clearInterval(timer);stop();};}return stream;
+  }}});
+ });
+ await page.goto(`/register/${courseId}`);await page.getByRole("button",{name:"Tiếp tục điền thông tin"}).click();await page.getByRole("textbox",{name:"Số CCCD",exact:true}).fill("99"+String(randomInt(0,10_000_000_000)).padStart(10,"0"));await page.getByRole("button",{name:"Tự điền thông tin",exact:true}).click();
+ const group=page.getByRole("group",{name:"Văn bằng chuyên môn (Nếu có)",exact:true});const file=group.getByLabel("Tải file Văn bằng chuyên môn (Nếu có)",{exact:true});
+ await expect(group.getByText(/JPG, JPEG, PNG, WebP hoặc PDF/)).toBeVisible();
+ let posts=0;page.on("request",request=>{if(request.url().endsWith("/api/upload")&&request.method()==="POST")posts++;});
+ await file.setInputFiles({name:"blocked.svg",mimeType:"image/svg+xml",buffer:Buffer.from("<svg/>")});await expect(group.getByRole("alert")).toContainText("Chọn JPG");expect(posts).toBe(0);
+ await file.setInputFiles({name:"large.png",mimeType:"image/png",buffer:Buffer.alloc(5*1024*1024+1)});await expect(group.getByRole("alert")).toContainText("5 MB");expect(posts).toBe(0);
+ const rejected=page.waitForResponse(response=>response.url().endsWith("/api/upload")&&response.request().method()==="POST");await file.setInputFiles({name:"fake.png",mimeType:"image/png",buffer:Buffer.from("not really an image")});expect((await rejected).status()).toBe(400);await expect(group.getByRole("alert")).toContainText("Nội dung file");
+ await group.getByRole("button").click();await page.getByRole("dialog").getByRole("button",{name:"Chụp ảnh",exact:true}).click();await expect(page.getByRole("dialog").getByRole("button",{name:"Chụp",exact:true})).toBeEnabled();
+ await page.getByRole("dialog").getByRole("button",{name:"Đóng",exact:true}).click();expect(await page.evaluate(()=>Reflect.get(window,"uploadCamera").stops)).toBe(1);
+ await group.getByRole("button").click();await page.getByRole("dialog").getByRole("button",{name:"Chụp ảnh",exact:true}).click();await expect(page.getByRole("dialog").getByRole("button",{name:"Chụp",exact:true})).toBeEnabled();
+ const response=page.waitForResponse(response=>response.url().endsWith("/api/upload")&&response.request().method()==="POST");await page.getByRole("dialog").getByRole("button",{name:"Chụp",exact:true}).click();const body=await (await response).json();expect(body.success).toBe(true);fileIds.push(body.fileId);
+ await expect(group.getByText("Đã tải lên · Bấm để đổi",{exact:true})).toBeVisible();expect(await page.evaluate(()=>Reflect.get(window,"uploadCamera").stops)).toBe(2);
+ await page.evaluate(()=>{navigator.mediaDevices.getUserMedia=async()=>{throw new DOMException("Denied","NotAllowedError");};});
+ await group.getByRole("button").click();await page.getByRole("dialog").getByRole("button",{name:"Chụp ảnh",exact:true}).click();await expect(page.getByRole("dialog").getByRole("alert")).toContainText("Không mở được camera");
+ for(const width of [390,1440]){await page.setViewportSize({width,height:938});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:`.local/ui-phase2/document-picker-${width}.png`});}
+ const upload=page.waitForEvent("filechooser");await page.getByRole("dialog").getByRole("button",{name:"Tải lên",exact:true}).click();const sent=page.waitForResponse(response=>response.url().endsWith("/api/upload")&&response.request().method()==="POST");
+ await (await upload).setFiles({name:"replacement.webp",mimeType:"image/webp",buffer:await sharp(png).webp().toBuffer()});const replacement=await (await sent).json();expect(replacement.success).toBe(true);fileIds.push(replacement.fileId);
+ await expect(group.getByText("Đã tải lên · Bấm để đổi",{exact:true})).toBeVisible();
 });

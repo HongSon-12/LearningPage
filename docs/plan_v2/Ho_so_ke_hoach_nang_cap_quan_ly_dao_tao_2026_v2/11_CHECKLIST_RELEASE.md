@@ -1,5 +1,7 @@
 # 11. Checklist phát hành production
 
+Cập nhật tham chiếu 07/11/2026: [báo cáo tiến độ hiện tại](../../BAO_CAO_TIEN_DO_DU_AN.md) đã ghi các kiểm tra local/SSO và cách tách Compose. Các ô bên dưới là gate phát hành trên môi trường đích; không tự đánh dấu chỉ từ kết quả local. Production dùng PostgreSQL/Nginx có sẵn với `PG_HOST=cap-cuu-115-db`, `PG_PORT=5432`, `DB_NETWORK=PROXY_NETWORK=cap-cuu-115_private`, upstream `edu-app:3000`.
+
 ## A. Source/Build
 - [ ] Git sạch, release tag rõ.
 - [ ] Lockfile commit.

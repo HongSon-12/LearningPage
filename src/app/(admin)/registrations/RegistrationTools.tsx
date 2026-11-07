@@ -1,4 +1,6 @@
 "use client";
+import { can } from "@/lib/permissions";
+import type { PermissionKey } from "@/lib/permission-catalog";
 import { DateTimePicker } from "@/components/forms/date-time-picker";
 import { SelectField, SelectOption } from "@/components/forms/select-field";
 import {
@@ -30,12 +32,20 @@ type Course = {
 export default function RegistrationTools({
   courses,
   role,
+  permissions,
   classId,
+  allowCreate = true,
 }: {
   courses: Course[];
   role: UserRole;
+  permissions: PermissionKey[];
   classId: string;
+  allowCreate?: boolean;
 }) {
+  const actor = { id: "", username: "", role, permissions };
+  const canImport = can(actor, "excel.import");
+  const canExport = can(actor, "excel.export");
+  const canCreate = allowCreate && role !== "ACCOUNTANT" && can(actor, "registrations.create");
   const [importOpen, setImportOpen] = useState(false);
   const router = useRouter();
   const [manual, setManual] = useState(false);
@@ -136,19 +146,13 @@ export default function RegistrationTools({
       setBusy(false);
     }
   }
+  if (!canCreate && !canImport && !canExport) return null;
   return (
-    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="space-y-4 rounded-xl border border-slate-200 bg-white p-3">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900">
-            Công cụ quản lý học viên
-          </h2>
-          <p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500">
-            Thêm học viên hoặc cập nhật dữ liệu của lớp bằng Excel.
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">{allowCreate ? "Thêm học viên hoặc cập nhật bằng Excel." : "Nhập, xuất chứng từ theo quyền của bạn."}</p>
         <div className="flex flex-wrap gap-2">
-          {role !== "ACCOUNTANT" && (
+          {canCreate && (
             <button
               disabled={busy || !courses.some((c) => c.status === "OPEN")}
               onClick={() => {
@@ -165,24 +169,24 @@ export default function RegistrationTools({
               className={primaryButton}
             >
               <Plus size={16} />
-              Thêm học viên / Đăng ký vét
+              Thêm học viên
             </button>
           )}
-          <a
+          {canExport && <a
             className={secondaryButton}
             href={`/api/admin/excel?classId=${encodeURIComponent(classId)}`}
           >
             <Download size={16} />
             Xuất Excel
-          </a>
-          <button
+          </a>}
+          {canImport && <button
             aria-expanded={importOpen}
             onClick={() => setImportOpen(!importOpen)}
             className={secondaryButton}
           >
             <Upload size={16} />
             Nhập Excel
-          </button>
+          </button>}
         </div>
       </div>
       {message && !manual && (
@@ -193,7 +197,7 @@ export default function RegistrationTools({
           {message}
         </p>
       )}
-      {importOpen && (
+      {canImport && importOpen && (
         <div className="space-y-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-start gap-3">
@@ -266,7 +270,7 @@ export default function RegistrationTools({
                 className={primaryButton}
               >
                 <Save size={16} />
-                Xác nhận lưu file
+                Lưu Excel
               </button>
             </div>
           )}
@@ -274,6 +278,7 @@ export default function RegistrationTools({
       )}
       {manual && (
         <AdminDialog
+          busy={busy}
           title="Thêm học viên thủ công / đăng ký vét"
           subtitle="Cung cấp thông tin và tài liệu như khi đăng ký trực tuyến."
           onClose={() => {
@@ -441,7 +446,7 @@ export default function RegistrationTools({
                   ) : (
                     <Save size={16} />
                   )}
-                  Lưu học viên
+                  Lưu
                 </button>
               </div>
             </footer>

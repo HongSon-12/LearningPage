@@ -4,6 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { readFile, mkdir } from "node:fs/promises";
 import { compare } from "bcryptjs";
+import sharp from "sharp";
 import prisma from "../src/lib/prisma";
 import { hashSecret } from "../src/lib/security";
 import { storeUpload, bindRegistrationFiles } from "../src/lib/stored-files";
@@ -23,7 +24,7 @@ let classId = "",
   managerId = "",
   otherId = "";
 let png = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=",
+  "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAD0lEQVQImWP4jwMwDC0JALoev0GybL49AAAAAElFTkSuQmCC",
   "base64",
 );
 async function asRole(page: Page, role = "ADMIN") {
@@ -116,6 +117,7 @@ test.beforeAll(async ({ browser }) => {
       data: {
         code: `ATT-${index}-${run}`,
         name: "Lớp điểm danh giả lập",
+        location: "Phòng kiểm thử",
         startTime: "08:00",
         endTime: "12:00",
         managerId: manager,
@@ -218,11 +220,15 @@ test("shadcn accounts: create, assign, prevent orphaned manager, change role/pas
   request,
 }) => {
   await asRole(page);
+  await page.setViewportSize({width:1440,height:938});
   await page.goto("/users");
   await page
     .getByRole("button", { name: "Thêm tài khoản", exact: true })
     .click();
-  let dialog = page.getByRole("dialog");
+  const left=await page.locator('[data-slot="master-pane"]').boundingBox(),right=await page.locator('[data-slot="detail-pane"]').boundingBox();
+  expect(left!.width/(left!.width+right!.width)).toBeCloseTo(0.3,1);
+  await page.screenshot({path:".local/ui-attendance/accounts-1440.png",fullPage:true});
+  let dialog = page.getByRole("region",{name:"Thông tin tài khoản",exact:true});
   await dialog.getByLabel("Tên đăng nhập", { exact: true }).fill(usernames[0]);
   await dialog
     .getByLabel("Mật khẩu", { exact: true })
@@ -236,9 +242,9 @@ test("shadcn accounts: create, assign, prevent orphaned manager, change role/pas
     (req) => req.method() === "POST" && Boolean(req.headers()["next-action"]),
   );
   await dialog
-    .getByRole("button", { name: "Lưu tài khoản", exact: true })
+    .getByRole("button", { name: "Lưu", exact: true })
     .click();
-  await expect(dialog).toHaveCount(0);
+  await expect(dialog.getByRole("heading",{name:usernames[0],exact:true})).toBeVisible();
   const mutation = await submitted;
   for (const role of ["CLASS_MANAGER", "ACCOUNTANT"]) {
     const denied = await request.post(mutation.url(), {
@@ -259,15 +265,13 @@ test("shadcn accounts: create, assign, prevent orphaned manager, change role/pas
   const created = await prisma.user.findUniqueOrThrow({
     where: { username: usernames[0] },
   });
-  await page
-    .getByRole("button", { name: "Phân công lớp", exact: true })
-    .click();
-  await page.getByLabel("Tìm kiếm", { exact: true }).fill(`ATT-1-${run}`);
+  await page.goto(`/courses/${outsideId}?tab=info`);
   await chooseSelect(
     page,
-    page.getByLabel(`Quản lý ATT-1-${run}`, { exact: true }),
+    page.getByRole("combobox", { name:"Người phụ trách", exact:true }),
     created.id,
   );
+  await page.getByRole("button", {name:"Lưu",exact:true}).click();
   await expect
     .poll(
       async () =>
@@ -275,29 +279,27 @@ test("shadcn accounts: create, assign, prevent orphaned manager, change role/pas
           .managerId,
     )
     .toBe(created.id);
-  await page.getByRole("button", { name: "Tài khoản", exact: true }).click();
+  await page.goto("/users");
   await page.getByLabel("Tìm kiếm", { exact: true }).fill(usernames[0]);
-  await page.getByRole("button", { name: "Chỉnh sửa", exact: true }).click();
-  dialog = page.getByRole("dialog");
+  await page.getByRole("button", { name: `Chọn tài khoản ${usernames[0]}`, exact: true }).click();
+  dialog = page.getByRole("region",{name:"Thông tin tài khoản",exact:true});
   await chooseSelect(
     page,
     dialog.getByLabel("Vai trò", { exact: true }),
     "ACCOUNTANT",
   );
   await dialog
-    .getByRole("button", { name: "Lưu tài khoản", exact: true })
+    .getByRole("button", { name: "Lưu", exact: true })
     .click();
   await expect(dialog.getByRole("alert")).toContainText("phân công");
   await dialog.getByRole("button", { name: "Hủy", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Phân công lớp", exact: true })
-    .click();
-  await page.getByLabel("Tìm kiếm", { exact: true }).fill(`ATT-1-${run}`);
+  await page.goto(`/courses/${outsideId}?tab=info`);
   await chooseSelect(
     page,
-    page.getByLabel(`Quản lý ATT-1-${run}`, { exact: true }),
+    page.getByRole("combobox", { name:"Người phụ trách", exact:true }),
     otherId,
   );
+  await page.getByRole("button", {name:"Lưu",exact:true}).click();
   await expect
     .poll(
       async () =>
@@ -312,10 +314,10 @@ test("shadcn accounts: create, assign, prevent orphaned manager, change role/pas
       expiresAt: new Date(Date.now() + 60000),
     },
   });
-  await page.getByRole("button", { name: "Tài khoản", exact: true }).click();
+  await page.goto("/users");
   await page.getByLabel("Tìm kiếm", { exact: true }).fill(usernames[0]);
-  await page.getByRole("button", { name: "Chỉnh sửa", exact: true }).click();
-  dialog = page.getByRole("dialog");
+  await page.getByRole("button", { name: `Chọn tài khoản ${usernames[0]}`, exact: true }).click();
+  dialog = page.getByRole("region",{name:"Thông tin tài khoản",exact:true});
   await chooseSelect(
     page,
     dialog.getByLabel("Vai trò", { exact: true }),
@@ -326,9 +328,10 @@ test("shadcn accounts: create, assign, prevent orphaned manager, change role/pas
     .fill("New-synthetic-password-123");
   await dialog.getByLabel("Cho phép đăng nhập", { exact: true }).uncheck();
   await dialog
-    .getByRole("button", { name: "Lưu tài khoản", exact: true })
+    .getByRole("button", { name: "Lưu", exact: true })
     .click();
-  await expect(dialog).toHaveCount(0);
+  await expect(dialog).toBeVisible();
+  await expect.poll(async()=>(await prisma.user.findUniqueOrThrow({where:{id:created.id}})).active).toBe(false);
   const saved = await prisma.user.findUniqueOrThrow({
     where: { id: created.id },
   });
@@ -364,20 +367,29 @@ test("session creation/edit and manual identity review, undo, close/reopen on mo
     .fill("01/02/2099 12:00");
   await dialog.getByLabel("Địa điểm", { exact: true }).fill("Phòng giả lập");
   await dialog
-    .getByRole("button", { name: "Lưu buổi học", exact: true })
+    .getByRole("button", { name: "Lưu", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
   const card = page
     .locator("article")
     .filter({ hasText: "Buổi thực hành giả lập" });
-  await card.getByRole("button", { name: "Sửa buổi học", exact: true }).click();
+  await page.setViewportSize({width:1440,height:938});
+  await expect(card).toBeVisible();
+  const rowBounds=await card.boundingBox();
+  const actionBounds=await card.getByRole("link",{name:"Điểm danh",exact:true}).boundingBox();
+  expect(actionBounds!.x).toBeGreaterThan(rowBounds!.x + rowBounds!.width / 2);
+  expect(rowBounds!.height).toBeLessThan(130);
+  await page.screenshot({path:".local/ui-attendance/sessions-1440.png",fullPage:true});
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:".local/ui-attendance/sessions-390.png",fullPage:true});
+  await card.getByRole("button", { name: "Sửa", exact: true }).click();
   await page
     .getByRole("dialog")
     .getByLabel("Tên buổi học", { exact: true })
     .fill("Buổi thực hành đã sửa");
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Lưu buổi học", exact: true })
+    .getByRole("button", { name: "Lưu", exact: true })
     .click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
@@ -398,7 +410,7 @@ test("session creation/edit and manual identity review, undo, close/reopen on mo
   await expect(
     page
       .getByRole("dialog")
-      .getByRole("button", { name: "Xác nhận có mặt", exact: true }),
+      .getByRole("button", { name: "Điểm danh", exact: true }),
   ).toBeDisabled();
   const image = page
     .getByRole("dialog")
@@ -410,7 +422,7 @@ test("session creation/edit and manual identity review, undo, close/reopen on mo
   await page.getByRole("dialog").getByRole("checkbox").check();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Xác nhận có mặt", exact: true })
+    .getByRole("button", { name: "Điểm danh", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Đã ghi nhận có mặt (1)", exact: true }),
@@ -538,7 +550,7 @@ test("actual QR decoder with synthetic camera frames stops tracks and waits for 
   });
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Xác nhận có mặt", exact: true })
+    .getByRole("button", { name: "Điểm danh", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Đã ghi nhận có mặt (1)", exact: true }),
@@ -585,7 +597,7 @@ test("camera permission failure and pending permission cleanup keep manual searc
   await expect(page.getByRole("dialog")).toContainText("PDF");
   await expect(
     page.getByRole("dialog").getByRole("link", {
-      name: "Mở tài liệu căn cước đã đăng ký",
+      name: "Xem CCCD",
       exact: true,
     }),
   ).toBeVisible();
@@ -664,7 +676,14 @@ test("preview and attendance routes enforce roles, class scope, no-store and cam
     expect(response.headers()["cache-control"]).toContain("no-store");
     expect(response.headers()["x-content-type-options"]).toBe("nosniff");
     expect(response.headers()["content-disposition"]).toContain("inline");
-    expect(await response.body()).toEqual(png);
+    const body=await response.body();
+    const original=await sharp(png).rotate().raw().toBuffer({resolveWithObject:true});
+    const decoded=await sharp(body).raw().toBuffer({resolveWithObject:true});
+    expect(decoded.info.width).toBe(original.info.width);
+    expect(decoded.info.height).toBe(original.info.height);
+    expect(decoded.data).toEqual(original.data);
+    const metadata=await sharp(body).metadata();
+    expect(metadata.exif).toBeUndefined();expect(metadata.icc).toBeUndefined();
   }
   for (const role of ["ACCOUNTANT", "OTHER"]) {
     expect(
@@ -697,13 +716,13 @@ test("preview and attendance routes enforce roles, class scope, no-store and cam
   expect(response!.status()).toBe(404);
   await asRole(page, "ACCOUNTANT");
   await page.goto(`/courses/${classId}/sessions/${sessionId}`);
-  await expect(page).toHaveURL("/registrations");
+  await expect(page).toHaveURL("/");
   await page.goto(`/courses/${classId}`);
   await expect(
-    page.getByRole("link", { name: "Buổi học và điểm danh", exact: true }),
+    page.getByRole("link", { name: "Buổi học", exact: true }),
   ).toHaveCount(0);
   response = await page.goto("/users");
-  await expect(page).toHaveURL("/registrations");
+  await expect(page).toHaveURL("/");
   expect(response!.headers()["permissions-policy"]).toContain("camera=()");
 });
 
@@ -728,7 +747,7 @@ test("server action replay cannot bypass attendance role or assigned class", asy
   );
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Xác nhận có mặt", exact: true })
+    .getByRole("button", { name: "Điểm danh", exact: true })
     .click();
   const mutation = await submitted;
   await expect(page.getByRole("dialog")).toHaveCount(0);

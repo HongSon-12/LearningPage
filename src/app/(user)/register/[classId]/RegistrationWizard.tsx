@@ -5,6 +5,8 @@ import { DateTimePicker } from "@/components/forms/date-time-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RegistrationIdentity, type ReturningProfile } from "./RegistrationIdentity";
+import { DocumentUpload } from "@/components/forms/document-upload";
+import { paymentReference } from "@/lib/payment-content";
 import React, { useState, useRef } from "react";
 import Image from "next/image";
 import type { Class, Setting } from "@prisma/client";
@@ -15,7 +17,6 @@ import {
   AlertCircle,
   Loader2,
   Copy,
-  Upload,
 } from "lucide-react";
 import {
   createRegistration,
@@ -104,11 +105,9 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
   const handleNext = () => setStep((s) => Math.min(s + 1, 3));
 
   const handleFileUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>,
-    field: keyof typeof formData,
+    file: File,
+    field: "idPhotoUrl" | "degreeUrl" | "paymentReceiptUrl",
   ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
 
     setUploadingField(field);
     const body = new FormData();
@@ -146,10 +145,10 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
         }
         setFormData((previous) => ({ ...previous, [field]: data.url }));
       } else {
-        alert("Upload thất bại: " + data.error);
+        throw new Error(data.error || "Chưa tải được file. Hãy thử lại.");
       }
-    } catch {
-      alert("Lỗi khi upload file.");
+    } catch (error) {
+      throw new Error(error instanceof Error ? error.message : "Chưa tải được file. Hãy thử lại.");
     } finally {
       setUploadingField(null);
     }
@@ -158,6 +157,9 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
   const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identityReady || !formData.gender || isLoading || uploadingField) return;
+    if(classData.courseType !== "COMMUNITY_FIRST_AID" && (!formData.idPhotoUrl || !formData.degreeUrl)) {
+      setSubmitError("Vui lòng thêm ảnh mặt trước CCCD và văn bằng/bằng lái xe trước khi tiếp tục.");return;
+    }
     setIsLoading(true);
 
     const sessionId =
@@ -235,15 +237,7 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
     ? bankIdMatch[1].trim().toLowerCase()
     : bankSettings.bankName.trim().toLowerCase().replace(/\s+/g, "");
 
-  let rawSyntax = bankSettings.transferSyntax || "{CLASS_CODE} {NAME}";
-  rawSyntax = rawSyntax
-    .replace(/{CLASS_CODE}/g, classData.code)
-    .replace(/\[Mã Lớp\]/gi, classData.code);
-  rawSyntax = rawSyntax
-    .replace(/{NAME}/g, formData.fullName.toUpperCase())
-    .replace(/\[Họ Tên\]/gi, formData.fullName.toUpperCase());
-
-  const transferContent = removeAccents(rawSyntax);
+  const transferContent = paymentReference(classData.code, formData.fullName);
   const qrUrl = `https://img.vietqr.io/image/${bankId}-${bankSettings.accountNumber}-compact2.png?amount=${classData.fee ?? 400000}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(removeAccents(bankSettings.accountName))}`;
 
   return (
@@ -430,86 +424,8 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
                 </div>}
               </fieldset>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
-                {/* Upload CCCD */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    Ảnh mặt trước CCCD {classData.courseType === "COMMUNITY_FIRST_AID" ? "(Tùy chọn)" : "*"}
-                  </label>
-                  <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors">
-                    {uploadingField === "idPhotoUrl" ? (
-                      <Loader2
-                        className="animate-spin mx-auto text-blue-500"
-                        size={24}
-                      />
-                    ) : formData.idPhotoUrl ? (
-                      <div className="flex flex-col items-center">
-                        <Check className="text-emerald-500 mb-2" size={24} />
-                        <span className="text-sm font-medium text-emerald-600">
-                          Đã tải lên CCCD
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center text-gray-500">
-                        <Upload size={24} className="mb-2" />
-                        <span className="text-sm">Chọn file ảnh</span>
-                      </div>
-                    )}
-                    <input
-                      disabled={isLoading || Boolean(uploadingField)}
-                      type="file"
-                      required={
-                        classData.courseType !== "COMMUNITY_FIRST_AID" &&
-                        !formData.idPhotoUrl
-                      }
-                      accept="image/*,application/pdf"
-                      onChange={(e) => handleFileUpload(e, "idPhotoUrl")}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                  </div>
-                </div>
-
-                {/* Upload Degree */}
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">
-                    {classData.courseType === "AMBULANCE_DRIVER"
-                      ? "Bằng lái xe"
-                      : "Văn bằng chuyên môn"}{" "}
-                    {classData.courseType === "COMMUNITY_FIRST_AID"
-                      ? "(Nếu có)"
-                      : "*"}
-                  </label>
-                  <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors">
-                    {uploadingField === "degreeUrl" ? (
-                      <Loader2
-                        className="animate-spin mx-auto text-blue-500"
-                        size={24}
-                      />
-                    ) : formData.degreeUrl ? (
-                      <div className="flex flex-col items-center">
-                        <Check className="text-emerald-500 mb-2" size={24} />
-                        <span className="text-sm font-medium text-emerald-600">
-                          Đã tải lên Bằng cấp
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center text-gray-500">
-                        <Upload size={24} className="mb-2" />
-                        <span className="text-sm">Chọn file ảnh</span>
-                      </div>
-                    )}
-                    <input
-                      disabled={isLoading || Boolean(uploadingField)}
-                      type="file"
-                      required={
-                        classData.courseType !== "COMMUNITY_FIRST_AID" &&
-                        !formData.degreeUrl
-                      }
-                      accept="image/*,application/pdf"
-                      onChange={(e) => handleFileUpload(e, "degreeUrl")}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                  </div>
-                </div>
+                <DocumentUpload label={`Ảnh mặt trước CCCD ${classData.courseType === "COMMUNITY_FIRST_AID" ? "(Tùy chọn)" : "*"}`} uploaded={Boolean(formData.idPhotoUrl)} busy={uploadingField === "idPhotoUrl"} disabled={isLoading || Boolean(uploadingField)} onUpload={file=>handleFileUpload(file,"idPhotoUrl")} />
+                <DocumentUpload label={`${classData.courseType === "AMBULANCE_DRIVER" ? "Bằng lái xe" : "Văn bằng chuyên môn"} ${classData.courseType === "COMMUNITY_FIRST_AID" ? "(Nếu có)" : "*"}`} uploaded={Boolean(formData.degreeUrl)} busy={uploadingField === "degreeUrl"} disabled={isLoading || Boolean(uploadingField)} onUpload={file=>handleFileUpload(file,"degreeUrl")} />
               </div>
 
               <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row">
@@ -636,36 +552,7 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
 
                 {/* Upload Biên lai */}
                 <div className="mt-6 pt-4 border-t border-gray-100">
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Tải lên biên lai chuyển khoản (Tùy chọn)
-                  </label>
-                  <div className="relative border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors">
-                    {uploadingField === "paymentReceiptUrl" ? (
-                      <Loader2
-                        className="animate-spin mx-auto text-blue-500"
-                        size={24}
-                      />
-                    ) : formData.paymentReceiptUrl ? (
-                      <div className="flex flex-col items-center">
-                        <Check className="text-emerald-500 mb-2" size={24} />
-                        <span className="text-sm font-medium text-emerald-600">
-                          Đã tải lên Biên lai
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center text-gray-500">
-                        <Upload size={24} className="mb-2" />
-                        <span className="text-sm">Chọn file ảnh biên lai</span>
-                      </div>
-                    )}
-                    <input
-                      disabled={isLoading || Boolean(uploadingField)}
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp,application/pdf"
-                      onChange={(e) => handleFileUpload(e, "paymentReceiptUrl")}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                  </div>
+                  <DocumentUpload label="Biên lai chuyển khoản (Tùy chọn)" uploaded={Boolean(formData.paymentReceiptUrl)} busy={uploadingField === "paymentReceiptUrl"} disabled={isLoading || Boolean(uploadingField)} onUpload={file=>handleFileUpload(file,"paymentReceiptUrl")} />
                 </div>
               </div>
             </div>

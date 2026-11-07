@@ -1,0 +1,83 @@
+# Local container stack. Production uses docker-compose.production.yml.
+# Keep the original identity and named volumes for existing local data.
+name: ttcc-app
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ttcc_postgres
+    environment:
+      POSTGRES_USER: ttcc_user
+      POSTGRES_PASSWORD: ttcc_password
+      POSTGRES_DB: ttcc_db
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ttcc_user -d ttcc_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # Older local uploads were created by a root container (mode 700).
+  # Prepare only this named volume before the non-root application starts.
+  uploads-init:
+    image: nginx:alpine
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-ec"]
+    command: ["mkdir -p /data/uploads; chmod 700 /data/uploads; chown -hR 1000:1000 /data/uploads"]
+    network_mode: none
+    volumes:
+      - uploads:/data/uploads
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ttcc_nextjs
+    environment:
+      - DATABASE_URL=postgresql://ttcc_user:ttcc_password@postgres:5432/ttcc_db?schema=public
+      - NODE_ENV=production
+      - AUTH_MODE=local
+      - PRIVATE_UPLOAD_DIR=/data/uploads
+      - APP_ORIGIN=${LOCAL_APP_ORIGIN:-http://localhost}
+      - TRUST_PROXY=true
+      - LOOKUP_OTP_SECRET=${LOOKUP_OTP_SECRET:?Set LOOKUP_OTP_SECRET in the local environment}
+    expose:
+      - "3000"
+    volumes:
+      - uploads:/data/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    depends_on:
+      uploads-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile.nginx
+    container_name: ttcc_nginx
+    ports:
+      - "127.0.0.1:${LOCAL_HTTP_PORT:-80}:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  uploads:

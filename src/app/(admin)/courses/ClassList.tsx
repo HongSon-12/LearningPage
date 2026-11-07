@@ -1,8 +1,9 @@
 "use client";
 import { SelectField, SelectOption } from "@/components/forms/select-field";
 
-import Link from "next/link";
+import {PendingLink as Link} from "@/components/navigation/navigation-feedback";
 import { useMemo, useState } from "react";
+import { classStage, classStageLabels, type ClassStage } from "@/lib/class-lifecycle";
 import type { Class } from "@prisma/client";
 import type { DataColumn } from "@/components/data-table/table-features";
 import {
@@ -16,10 +17,9 @@ import {
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createClass, deleteClass, updateClass } from "@/app/actions/class";
-import { programs, type ProgramType } from "@/lib/programs";
+import { programs } from "@/lib/programs";
 import { DataTable } from "@/components/data-table/data-table";
 import { StatusBadge } from "@/components/admin/status-badge";
-import { FilterBar } from "@/components/admin/filter-bar";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { ClassForm } from "@/components/forms/class-form";
 import { Button } from "@/components/ui/button";
@@ -28,15 +28,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminDialog from "../components/AdminDialog";
 
-type ClassData = Class & { _count: { registrations: number } };
+type ClassData = Class & { manager: {id:string;username:string}|null; _count: { registrations: number; sessions:number } };
 export default function ClassList({
   initialClasses,
+  managers,
+  today,
   canCreate = true,
   canEdit = true,
+  canSessions = true,
+  canRegistrations = true,
 }: {
   initialClasses: ClassData[];
+  managers?: {id:string;username:string}[];
+  today: string;
   canCreate?: boolean;
   canEdit?: boolean;
+  canSessions?: boolean;
+  canRegistrations?: boolean;
 }) {
   const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -44,6 +52,7 @@ export default function ClassList({
   const [deleting, setDeleting] = useState<ClassData | null>(null);
   const [saveBusy, setSaveBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [stage, setStage] = useState<ClassStage | "">("");
   const [query, setQuery] = useState("");
   const [filterReset, setFilterReset] = useState(0);
   const [program, setProgram] = useState("");
@@ -54,6 +63,7 @@ export default function ClassList({
     () =>
       initialClasses.filter(
         (course) =>
+          (!stage || classStage(course,today) === stage) &&
           (!program || course.courseType === program) &&
           (!status || course.status === status) &&
           (!from || new Date(course.startDate) >= new Date(from)) &&
@@ -64,7 +74,7 @@ export default function ClassList({
             .toLocaleLowerCase("vi")
             .includes(query.trim().toLocaleLowerCase("vi")),
       ),
-    [initialClasses, program, status, from, to, query],
+    [initialClasses, program, status, from, to, query, stage, today],
   );
   const columns = useMemo<DataColumn<ClassData>[]>(
     () => [
@@ -86,7 +96,7 @@ export default function ClassList({
           <div className="min-w-44 max-w-80 whitespace-normal">
             <p className="font-medium">{row.original.name}</p>
             <p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-muted-foreground">
-              {programs[row.original.courseType as ProgramType].name}
+              {row.original.manager?.username || "Chưa có người phụ trách"}
             </p>
           </div>
         ),
@@ -108,17 +118,13 @@ export default function ClassList({
       },
       {
         accessorKey: "status",
-        header: "Trạng thái",
-        meta: { label: "Trạng thái" },
+        header: "Tiến trình",
+        meta: { label: "Tiến trình" },
         cell: ({ row }) => (
-          <StatusBadge
-            kind="class"
-            value={
-              row.original.capacity - row.original._count.registrations <= 0
-                ? "FULL"
-                : row.original.status
-            }
-          />
+          <div className="space-y-1.5">
+            <p className="font-medium">{classStageLabels[classStage(row.original,today)]}</p>
+            <StatusBadge kind="class" value={row.original.capacity - row.original._count.registrations <= 0 && row.original.status !== "DONE" ? "FULL" : row.original.status} />
+          </div>
         ),
       },
       {
@@ -127,9 +133,7 @@ export default function ClassList({
         header: "Học viên",
         meta: { label: "Sĩ số" },
         cell: ({ row }) => (
-          <span className="whitespace-nowrap tabular-nums">
-            {row.original._count.registrations} / {row.original.capacity}
-          </span>
+          <div className="whitespace-nowrap tabular-nums"><p>{row.original._count.registrations} / {row.original.capacity}</p><p className="mt-1 text-xs text-muted-foreground">{row.original._count.sessions} buổi học</p></div>
         ),
       },
       {
@@ -139,16 +143,16 @@ export default function ClassList({
         enableHiding: false,
         cell: ({ row }) => (
           <div className="flex items-center justify-end gap-1">
-            <Button asChild variant="action" size="row">
+            {canRegistrations && <Button asChild variant="action" size="row">
               <Link href={`/courses/${row.original.id}`}>
                 <BookOpen />
-                <span className="sr-only sm:not-sr-only">Quản lý học viên</span>
+                <span className="sr-only sm:not-sr-only">Mở lớp</span>
               </Link>
-            </Button>
-            {canEdit && (
+            </Button>}
+            {canSessions && !canRegistrations && (
               <Button asChild variant="action" size="row">
                 <Link
-                  href={`/courses/${row.original.id}/sessions`}
+                  href={`/courses/${row.original.id}?tab=sessions`}
                   aria-label={`Buổi học lớp ${row.original.code}`}
                 >
                   <CalendarDays />
@@ -186,7 +190,7 @@ export default function ClassList({
         ),
       },
     ],
-    [canCreate, canEdit],
+    [canCreate, canEdit, canSessions, canRegistrations, today],
   );
   async function save(form: FormData) {
     setSaveBusy(true);
@@ -236,12 +240,18 @@ export default function ClassList({
             }}
           >
             <Plus />
-            Thêm Khóa học
+            Tạo lớp
           </Button>
         )}
       </div>
-      <FilterBar>
-        <div className="min-w-48 flex-1 space-y-2">
+      <div aria-label="Tiến trình lớp" className="flex flex-wrap gap-2">
+        {(["", "upcoming", "teaching", "ended"] as const).map(value => <Button key={value} variant={stage === value ? "default" : "outline"} aria-pressed={stage === value} onClick={() => setStage(value)}>
+          {value ? classStageLabels[value] : "Tất cả"}<span className="rounded-md bg-white/20 px-1.5 text-xs tabular-nums">{initialClasses.filter(course => !value || classStage(course,today) === value).length}</span>
+        </Button>)}
+      </div>
+      <section role="search" aria-label="Bộ lọc lớp học" className="@container rounded-xl border bg-card p-4">
+        <div className="grid items-end gap-3 @min-[480px]:grid-cols-2 @min-[760px]:grid-cols-3 @min-[1160px]:grid-cols-[minmax(180px,1.6fr)_minmax(160px,1.2fr)_minmax(140px,1fr)_190px_190px_auto]">
+        <div className="min-w-0 space-y-2 @min-[480px]:col-span-2 @min-[760px]:col-span-1">
           <Label htmlFor="course-query">Tìm lớp học</Label>
           <div className="relative">
             <Search className="absolute left-3 top-3.5 size-4 text-muted-foreground" />
@@ -254,7 +264,7 @@ export default function ClassList({
             />
           </div>
         </div>
-        <div className="w-full space-y-2 sm:w-56">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="course-program">Chương trình</Label>
           <SelectField
             id="course-program"
@@ -269,7 +279,7 @@ export default function ClassList({
             ))}
           </SelectField>
         </div>
-        <div className="w-full space-y-2 sm:w-48">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="course-status">Trạng thái</Label>
           <SelectField
             id="course-status"
@@ -282,23 +292,25 @@ export default function ClassList({
             <SelectOption value="DONE">Đã kết thúc</SelectOption>
           </SelectField>
         </div>
-        <div className="w-full space-y-2 sm:w-48">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="course-from">Khai giảng từ</Label>
           <DateTimePicker
             key={`from-${filterReset}`}
             id="course-from"
             calendarLabel="Khai giảng từ"
             value={from}
+            max={to || undefined}
             onValueChange={setFrom}
           />
         </div>
-        <div className="w-full space-y-2 sm:w-48">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="course-to">Đến ngày</Label>
           <DateTimePicker
             key={`to-${filterReset}`}
             id="course-to"
             calendarLabel="Đến ngày"
             value={to}
+            min={from || undefined}
             onValueChange={setTo}
           />
         </div>
@@ -306,6 +318,7 @@ export default function ClassList({
           variant="action"
           onClick={() => {
             setFilterReset((count) => count + 1);
+            setStage("");
             setQuery("");
             setProgram("");
             setStatus("");
@@ -315,7 +328,8 @@ export default function ClassList({
         >
           Xóa bộ lọc
         </Button>
-      </FilterBar>
+        </div>
+      </section>
       <section className="min-w-0 overflow-hidden rounded-xl border bg-card">
         <DataTable
           columns={columns}
@@ -335,8 +349,9 @@ export default function ClassList({
       </section>
       {dialogOpen && (
         <AdminDialog
+          busy={saveBusy}
           returnFocusId={editing ? `class-edit-${editing.id}` : "class-create"}
-          title={editing ? "Sửa Khóa Học" : "Thêm Khóa Học Mới"}
+          title={editing ? "Thông tin lớp" : "Tạo lớp"}
           subtitle="Thông tin chương trình, lịch học và sĩ số của lớp."
           onClose={() => {
             if (!saveBusy) setDialogOpen(false);
@@ -345,6 +360,7 @@ export default function ClassList({
           <ClassForm
             key={editing?.id ?? "new"}
             course={editing}
+            managers={managers}
             onSave={save}
             onCancel={() => setDialogOpen(false)}
           />

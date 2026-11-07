@@ -1,6 +1,6 @@
 import React from "react";
-import { occupiedWhere } from "@/lib/admissions";
-import prisma from "@/lib/prisma";
+import { publicClasses } from "@/lib/public-classes";
+import LiveRosterRefresh from "../../components/LiveRosterRefresh";
 import CourseListUser, { type CourseData } from "./CourseListUser";
 
 export const dynamic = "force-dynamic";
@@ -9,20 +9,14 @@ export default async function UserCoursesPage(props: { searchParams?: Promise<{ 
   const searchParams = await props.searchParams;
   let classes: CourseData[] = [];
   try {
-    classes = await prisma.class.findMany({
-      orderBy: { startDate: "asc" },
-      include: {
-        _count: {
-          select: { registrations: {where: occupiedWhere} },
-        },
-      },
-    });
+    classes = await publicClasses();
   } catch (error) {
     console.error("Lỗi lấy danh sách lớp cho User:", error);
   }
 
   return (
     <div className="py-8 space-y-12">
+      <LiveRosterRefresh initialSnapshot={JSON.stringify(classes.map(c=>({id:c.id,capacity:c.capacity,count:c._count.registrations})))} />
       <div className="text-center space-y-4 max-w-2xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">
           Danh sách <span className="text-gradient">Khóa học</span>

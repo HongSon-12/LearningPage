@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import type { Actor } from "@/lib/permissions";
-import { classScope } from "@/lib/permissions";
+import { classScope, can, assertPermission } from "@/lib/permissions";
 import { studentScope } from "@/lib/students";
 import { RequestError } from "@/lib/security";
 const inputSchema = z.object({
@@ -17,6 +17,7 @@ export async function queryStudentDirectory(
   actor: Actor,
   input: StudentDirectoryFilter,
 ) {
+  assertPermission(actor, "students.view");
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) throw new RequestError("Bộ lọc học viên không hợp lệ.");
   const filter = parsed.data,
@@ -38,7 +39,7 @@ export async function queryStudentDirectory(
           { fullName: { contains: filter.query, mode: "insensitive" } },
           { phone: { contains: filter.query } },
           { email: { contains: filter.query, mode: "insensitive" } },
-          ...(actor.role !== "ACCOUNTANT"
+          ...(actor.role !== "ACCOUNTANT" && can(actor, "students.identity")
             ? [{ cccd: { contains: filter.query } }]
             : []),
         ],
@@ -102,7 +103,7 @@ export async function queryStudentDirectory(
           fullName: row.fullName,
           dob: row.dob.toISOString().slice(0, 10),
           cccd: row.cccd
-            ? actor.role === "ACCOUNTANT"
+            ? (actor.role === "ACCOUNTANT" || !can(actor, "students.identity"))
               ? `********${row.cccd.slice(-4)}`
               : row.cccd
             : null,

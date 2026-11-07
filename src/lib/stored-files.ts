@@ -1,10 +1,11 @@
 import type { FileKind, Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
+import { freshActor } from "./rbac";
 import type { Actor } from "@/lib/permissions";
-import { assertClassAccess } from "@/lib/permissions";
+import { assertClassAccess, can } from "@/lib/permissions";
 import { hashSecret, RequestError } from "@/lib/security";
 import {
-  inspectFile,
+  prepareUpload,
   writePrivate,
   removePrivate,
   MAX_FILE_BYTES,
@@ -41,12 +42,13 @@ export async function storeUpload(
     receiptToken && validCapability(receiptToken)
       ? hashSecret(receiptToken)
       : null;
-  const staff = !receiptToken && actor;
+  const staff = !receiptToken && actor ? await freshActor(actor) : null;
   if (!ownerTokenHash && !staff)
     throw new RequestError("Phiên tải hồ sơ không hợp lệ.", 403);
   const course = await prisma.class.findUnique({ where: { id: classId } });
   if (!course) throw new RequestError("Lớp không nhận hồ sơ.");
   if (staff) {
+    if (!can(staff, kind === "RECEIPT" ? "receipts.view" : "students.identity")) throw new RequestError("Không có quyền tải tài liệu này.", 403);
     assertClassAccess(staff, course);
     if (staff.role === "ACCOUNTANT" && kind !== "RECEIPT")
       throw new RequestError("Không có quyền tải loại tài liệu này.", 403);
@@ -72,8 +74,7 @@ export async function storeUpload(
     throw new RequestError("Lớp không nhận hồ sơ.");
   const identity = staff ? { uploadedById: staff.id } : { ownerTokenHash };
   // Transaction lock bounds per-owner staged file count even under concurrent uploads.
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const { ext, sha256 } = inspectFile(file.name, file.type, buffer);
+  const { buffer, ext, sha256 } = await prepareUpload(file.name, file.type, Buffer.from(await file.arrayBuffer()));
   const storageKey = await writePrivate(buffer, ext);
   try {
     return await prisma.$transaction(async (tx) => {
@@ -149,11 +150,12 @@ export async function bindRegistrationFiles(
 }
 export async function accessibleFile(fileId: string, actor: Actor | null) {
   if (!actor || !/^[a-f0-9-]{36}$/.test(fileId)) return null;
+  try { actor = await freshActor(actor); } catch { return null; }
   const file = await prisma.storedFile.findUnique({
     where: { id: fileId },
     include: { registration: { include: { class: true } } },
   });
-  if (!file || (actor.role === "ACCOUNTANT" && file.kind !== "RECEIPT"))
+  if (!file || !can(actor, file.kind === "RECEIPT" ? "receipts.view" : "students.identity") || (actor.role === "ACCOUNTANT" && file.kind !== "RECEIPT"))
     return null;
   if (file.registration) {
     const field = fileFields.find(([, , kind]) => kind === file.kind)![1];

@@ -1,12 +1,16 @@
+import {RequestError} from "@/lib/errors";
 import { studentForRegistration } from "@/lib/students";
 import { bindRegistrationFiles } from "@/lib/stored-files";
 import ExcelJS from "exceljs";
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { classScope, assertClassAccess, type Actor } from "@/lib/permissions";
+import { freshActor, transactionPermission } from "./rbac";
+import { assertPermission } from "./permissions";
+import { classScope, assertClassAccess, can, type Actor } from "@/lib/permissions";
 import {
   addRegistration,
   availableClass,
+  lockClasses,
   errorMessage,
   rosterTransaction,
   registrationData,
@@ -40,22 +44,26 @@ const columns = [
 ] as const;
 const accountingFields = ["id", "classCode", "invoiceCode"];
 function writable(key: string, actor: Actor) {
-  return (
-    actor.role === "ADMIN" ||
-    (actor.role === "ACCOUNTANT"
-      ? accountingFields.includes(key)
-      : !["invoiceCode", "paymentStatus"].includes(key))
-  );
+  const legacy = actor.role === "ADMIN" || (actor.role === "ACCOUNTANT" ? accountingFields.includes(key) : !["invoiceCode", "paymentStatus"].includes(key));
+  if (!legacy) return false;
+  if (["id", "classCode"].includes(key)) return true;
+  if (key === "invoiceCode") return can(actor, "invoices.manage");
+  if (["certificateCode", "confirmationNumber", "certificateDeliveredDirect", "certificateSentByPost"].includes(key)) return can(actor, "certificates.manage");
+  if (["status", "rejectionReason"].includes(key)) return can(actor, "registrations.review");
+  if (key === "paymentStatus") return actor.role === "ADMIN";
+  return can(actor, "registrations.create");
 }
 export async function excelExport(
   actor: Actor,
   classId: string | null,
   template: boolean,
 ) {
+  actor = await freshActor(actor);
+  assertPermission(actor, "excel.export");
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet("Học viên");
   const allowed =
-    actor.role === "ACCOUNTANT"
+    (actor.role === "ACCOUNTANT" || !can(actor, "students.identity"))
       ? columns.filter(
           ([key]) =>
             ![
@@ -68,9 +76,10 @@ export async function excelExport(
             ].includes(key),
         )
       : columns;
+  const visible = allowed.filter(([key]) => key !== "paymentReceiptUrl" || can(actor, "receipts.view"));
   const chosen = template
-    ? allowed.filter(([key]) => writable(key, actor))
-    : allowed;
+    ? visible.filter(([key]) => writable(key, actor))
+    : visible;
   sheet.columns = chosen.map(([key, header]) => ({ key, header, width: 25 }));
   sheet.views = [{ state: "frozen", ySplit: 1 }];
   if (!template) {
@@ -122,7 +131,7 @@ function value(cell: ExcelJS.Cell): string {
   if (cell.value === null || cell.value === undefined) return "";
   if (cell.value instanceof Date) return cell.value.toISOString().slice(0, 10);
   if (typeof cell.value === "object")
-    throw new Error(
+    throw new RequestError(
       "Không hỗ trợ công thức, liên kết hoặc nội dung đặc biệt trong ô.",
     );
   return String(cell.value).trim();
@@ -130,7 +139,7 @@ function value(cell: ExcelJS.Cell): string {
 function bool(value: string) {
   if (["Có", "true", "1"].includes(value)) return true;
   if (["Không", "false", "0"].includes(value)) return false;
-  throw new Error("Trạng thái gửi GCN phải là Có hoặc Không.");
+  throw new RequestError("Trạng thái gửi GCN phải là Có hoặc Không.");
 }
 export async function readExcel(buffer: Buffer) {
   const book = new ExcelJS.Workbook();
@@ -139,19 +148,19 @@ export async function readExcel(buffer: Buffer) {
   );
   const sheet = book.getWorksheet("Học viên");
   if (!sheet || sheet.rowCount > 501 || sheet.columnCount > 30)
-    throw new Error("Cần sheet Học viên, tối đa 500 dòng và 30 cột.");
+    throw new RequestError("Cần sheet Học viên, tối đa 500 dòng và 30 cột.");
   const headers: string[] = [];
   const seen = new Set<string>();
   sheet.getRow(1).eachCell((cell, index) => {
     const header = value(cell);
     const match = columns.find(([, label]) => label === header);
     if (!match || seen.has(match[0]))
-      throw new Error("Tên cột không hợp lệ hoặc trùng: " + header);
+      throw new RequestError("Tên cột không hợp lệ hoặc trùng: " + header);
     headers[index] = match[0];
     seen.add(match[0]);
   });
   if (!seen.has("id") || !seen.has("classCode"))
-    throw new Error("Thiếu cột Mã hồ sơ hoặc Mã lớp.");
+    throw new RequestError("Thiếu cột Mã hồ sơ hoặc Mã lớp.");
   const rows: { row: number; data: RowData }[] = [];
   for (let n = 2; n <= sheet.rowCount; n++) {
     const data: RowData = {};
@@ -160,7 +169,7 @@ export async function readExcel(buffer: Buffer) {
     });
     if (Object.values(data).some(Boolean)) rows.push({ row: n, data });
   }
-  if (!rows.length) throw new Error("File không có dữ liệu.");
+  if (!rows.length) throw new RequestError("File không có dữ liệu.");
   return rows;
 }
 export async function importExcel(
@@ -174,19 +183,22 @@ export async function importExcel(
   const previewRollback = new Error("PREVIEW_ROLLBACK");
   try {
     await rosterTransaction(async (tx) => {
+      const classes = await tx.class.findMany({where:{code:{in:[...new Set(rows.map(row=>row.data.classCode))]}},select:{id:true}});
+      await lockClasses(tx, classes.map(course=>course.id));
+      actor = await transactionPermission(tx, actor, "excel.import");
       const ids = new Set<string>();
       for (const { row, data } of rows) {
         try {
           if (data.id && ids.has(data.id))
-            throw new Error("Mã hồ sơ lặp lại trong file.");
+            throw new RequestError("Mã hồ sơ lặp lại trong file.");
           if (data.id) ids.add(data.id);
           const course = await tx.class.findUnique({
             where: { code: data.classCode },
           });
-          if (!course) throw new Error("Mã lớp không tồn tại.");
+          if (!course) throw new RequestError("Mã lớp không tồn tại.");
           assertClassAccess(actor, course);
           if (expectedClassId && course.id !== expectedClassId)
-            throw new Error(
+            throw new RequestError(
               "File chứa học viên của lớp khác. Vui lòng nhập file đúng lớp đang quản lý.",
             );
           const existing = data.id
@@ -195,14 +207,14 @@ export async function importExcel(
                 include: { class: true },
               })
             : null;
-          if (data.id && !existing) throw new Error("Mã hồ sơ không tồn tại.");
+          if (data.id && !existing) throw new RequestError("Mã hồ sơ không tồn tại.");
           if (existing) {
             assertClassAccess(actor, existing.class);
             if (existing.classId !== course.id)
-              throw new Error("Không được chuyển lớp qua import.");
+              throw new RequestError("Không được chuyển lớp qua import.");
           }
-          if (!existing && actor.role === "ACCOUNTANT")
-            throw new Error("Kế toán không được tạo hồ sơ.");
+          if (!existing && (actor.role === "ACCOUNTANT" || !can(actor, "registrations.create")))
+            throw new RequestError("Kế toán không được tạo hồ sơ.");
           for (const [key, v] of Object.entries(data)) {
             if (!v || writable(key, actor)) continue;
             const old = existing
@@ -217,7 +229,7 @@ export async function importExcel(
                     : "Không"
                   : String(old ?? "");
             if (v !== previous)
-              throw new Error(
+              throw new RequestError(
                 "Không có quyền sửa cột " +
                   (columns.find(([k]) => k === key)?.[1] || key),
               );
@@ -226,7 +238,7 @@ export async function importExcel(
           if (!reg) {
             const method = data.registrationMethod || "MANUAL";
             if (!["MANUAL", "LATE"].includes(method))
-              throw new Error("Tạo mới chỉ dùng MANUAL hoặc LATE.");
+              throw new RequestError("Tạo mới chỉ dùng MANUAL hoặc LATE.");
             reg = (await addRegistration(
               tx,
               {
@@ -251,7 +263,7 @@ export async function importExcel(
               { method: method as "MANUAL" | "LATE", actorId: actor.id },
             )) as typeof existing;
           }
-          if (!reg) throw new Error("Không thể tạo hồ sơ.");
+          if (!reg) throw new RequestError("Không thể tạo hồ sơ.");
           const patch: Prisma.RegistrationUpdateInput = {};
           const personalKeys = [
             "fullName",
@@ -321,14 +333,14 @@ export async function importExcel(
             !["PENDING", "APPROVED", "REJECTED"].includes(status) ||
             !["PENDING", "PAID", "CANCELLED"].includes(paymentStatus)
           )
-            throw new Error("Trạng thái không hợp lệ.");
+            throw new RequestError("Trạng thái không hợp lệ.");
           if (data.status && actor.role !== "ACCOUNTANT") {
             if (
               status === "REJECTED" &&
               !data.rejectionReason &&
               !reg.rejectionReason
             )
-              throw new Error("Cần lý do từ chối.");
+              throw new RequestError("Cần lý do từ chối.");
             patch.status = status as "PENDING" | "APPROVED" | "REJECTED";
             patch.rejectionReason =
               status === "REJECTED"
@@ -351,7 +363,7 @@ export async function importExcel(
             existing &&
             data.registrationMethod !== existing.registrationMethod
           )
-            throw new Error("Không thay đổi nguồn đăng ký qua Excel.");
+            throw new RequestError("Không thay đổi nguồn đăng ký qua Excel.");
           for (const key of [
             "invoiceCode",
             "certificateCode",
@@ -378,7 +390,7 @@ export async function importExcel(
             fullName: reg.fullName,
           });
         } catch (error) {
-          throw new Error(`Dòng ${row}: ${errorMessage(error)}`);
+          throw new RequestError(`Dòng ${row}: ${errorMessage(error)}`);
         }
       }
       if (!commit) throw previewRollback;

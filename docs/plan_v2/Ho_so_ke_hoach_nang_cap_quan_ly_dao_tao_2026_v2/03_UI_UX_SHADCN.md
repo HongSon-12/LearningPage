@@ -250,3 +250,65 @@ User revised previous small/ghost treatment: management main text16px, supportin
 All shared table cells inherit their row background, including sticky action cells; headers use the same opaque muted background. Hover/focus highlights the entire data row without geometric change. Row action variants have blue tinted surfaces/borders and stronger hover; delete variants stay rose. Icon buttons show accessible-label tooltips. Desktop row buttons40px/touch44px. Dashboard arrows replaced by labeled Xem lớp buttons. Group action intrinsic width is reserved; student action column widened and course status filter expanded after increasing type.
 
 Verification: production build/type/private-artifact gate and lint pass. Full browser suite25/25 pass; final layout suite4/4 rerun after intrinsic width fix. Tests compare cell/header colors, before/after geometry, action bounds within cell, opaque sticky mobile cell, button border/background/type/title, actual fonts and no page overflow. Desktop/mobile screenshots reviewed.
+
+
+## Phase02h — Nhịp cuộn trang cộng đồng
+17/10/2026: giảm khoảng trống giữa hero và phần tiếp từ256px xuống64pxmobile/88pxdesktop; rút khoảng cách tiêu đề/thẻ. Thêm liên kết Xem tiếp cuộn mượt đến tình huống thường gặp, dùng khoảng bù96px sẵn ở root để tiêu đề không bị navbar80px che. Không can thiệp wheel/touch hoặc ép chuyển mục. Reveal nội dung sớm120px, chuyển động nhẹ hơn; tôn trọng reduced-motion và dừng tự đổi ảnh khi bật chế độ này. Kiểm thử390/1440,anchor/keyboard/wheel/hash/reduced-motion/no-overflow đạt2/2;build/lint đạt.
+Các đề xuất cải thiện nội dung/chuyển đổi được trình bày cho người dùng; chưa đổi các tuyên bố,học phí hay chương trình đào tạo.
+
+
+## Phase02i — Tách tài khoản, phân quyền và phân công lớp (17/10/2026)
+- `/users`: tài khoản đăng nhập, tạo/sửa tài khoản, chọn một trong ba vai trò, đổi mật khẩu, khóa tài khoản; bảo vệ quản trị cuối cùng và tài khoản đang phụ trách lớp giữ nguyên.
+- `/permissions`: thiết lập quyền theo nhóm bằng checkbox. ADMIN luôn toàn quyền, không thể sửa. CLASS_MANAGER và ACCOUNTANT bật/tắt trong phạm vi nghiệp vụ cũ; chưa mở cấp chéo vai trò hoặc tạo vai trò mới. Quyền phụ thuộc tự bật/tắt theo thao tác. Lưu có phiên bản để tránh ghi đè cấu hình từ tab khác.
+- `/courses/assignments`: phân công quản lý lớp, truy cập từ Lớp học. Phạm vi lớp vẫn gắn managerId; phân quyền vai trò không tự mở rộng phạm vi dữ liệu.
+- Cấu trúc RBAC: User → Role → Permission; RolePolicy/RolePermission lưu trong DB. Kiểm tra người dùng đang hoạt động và quyền hiện tại phía máy chủ; menu và nút chỉ hiển thị quyền được cấp. Thu hồi quyền có hiệu lực từ yêu cầu tiếp theo, bao gồm trang cũ còn mở, tài liệu định danh, điểm danh và Excel. Trường hợp không còn quyền có trang hướng dẫn riêng, không vòng lặp chuyển hướng.
+- Thanh đầu quản trị80px để đủ chỗ cho tiêu đề và liên kết quay lại. Bỏ bốn thẻ điều hướng trùng sidebar trong Tổng quan; giữ thẻ thống kê.
+- Bỏ cấu hình cú pháp chuyển khoản trên Settings. Cố định `{CLASS_CODE} {NAME}`; tên viết hoa, bỏ dấu. Bản ghi cũ giữ lại để tương thích, giao diện thanh toán dùng hàm cố định.
+- Trang cộng đồng nới vùng nội dung tối đa1440px, giữ lề trên màn hình lớn để dễ đọc. Sửa hydration do reduced-motion khác giữa server/client; hiệu ứng xuất hiện lặp lại khi cuộn lên/xuống, tôn trọng tùy chọn giảm chuyển động.
+- Tham chiếu mô hình RBAC: https://csrc.nist.gov/Projects/role-based-access-control/faqs . Không tuyên bố chứng nhận tuân thủ NIST; phiên bản hiện tại dùng ba vai trò cố định và phạm vi lớp độc lập.
+
+
+## Phase02j — Không gian làm việc của lớp (17/10/2026)
+Thay thế cách phân công của Phase02i: bỏ màn hình phân công riêng. ADMIN chọn **Người phụ trách** ngay trong biểu mẫu tạo/sửa lớp; lưu phân công và thông tin lớp trong cùng giao dịch, kiểm tra tài khoản active/CLASS_MANAGER và giữ nguyên bảo vệ phạm vi lớp. `/courses/assignments` cũ chỉ chuyển về danh sách lớp; không còn nút hay bảng phân công riêng.
+
+`/courses` dùng các nhóm Tất cả / Sắp học / Đang học / Đã kết thúc, dựa lịch học và trạng thái kết thúc; không tự thay đổi trạng thái nhận đăng ký. Bảng hiển thị người phụ trách và số buổi. Thao tác chính **Mở lớp**, bên cạnh Sửa/Xóa theo quyền. Người chỉ có quyền buổi học vẫn có lối vào riêng. Nút tạo, tìm/lọc và bảng không còn bị chia bởi nút phân công riêng.
+
+`/courses/[id]` là không gian chung: tóm tắt lịch, địa điểm, phụ trách, đăng ký và số liệu gọn; điều hướng **Học viên / Buổi học / Chứng từ / Thông tin**. Mục Thông tin cho phép sửa tại chỗ; kế toán xem thông tin, không sửa lớp. Mục Chứng từ có cột thanh toán, hóa đơn, số GCN/GXN đúng loại chứng nhận, bàn giao; lọc chờ thanh toán, chưa có hóa đơn/chứng nhận, chưa bàn giao. Kế toán và quản lý lớp giữ quyền từng trường; mở Cập nhật đi thẳng phần chứng từ. Tìm học viên tiếp tục gửi nội bộ, không đưa định danh vào URL.
+
+Buổi học dùng hàng ngang trên desktop: tên/trạng thái/lịch/địa điểm/số đã điểm danh và cụm Điểm danh/Sửa. Màn hình nhỏ xếp gọn theo chiều dọc, cụm nút giữ ngang. Nhãn sidebar và nút rút gọn nhưng giữ tên truy cập rõ nghĩa cho nút chỉ biểu tượng.
+
+Bảng quản trị có đường kẻ cột1px nhẹ, tiêu đề căn giữa, nút sắp xếp bỏ khoảng lệch trái. Ô nhập, lịch và select dùng nền trắng; bỏ nền xám do dark media của thiết bị áp vào giao diện sáng; trạng thái disabled vẫn phân biệt. Không thay đổi cỡ chữ lớn đã chốt.
+
+Cảnh báo Reduced Motion đến từ useReducedMotion của Motion trong môi trường phát triển, không phải lỗi chức năng. Thay bằng useSyncExternalStore đọc matchMedia có server snapshot cố định, cập nhật khi thiết bị đổi tùy chọn và không phát cảnh báo. Vẫn giữ chế độ giảm chuyển động, dừng tự đổi ảnh và không tạo hydration mismatch. Tham chiếu: https://motion.dev/troubleshooting/reduced-motion-disabled .
+
+
+## Phase02k — Bố cục 3/7 và giữ nguyên tổng quan lớp (17/10/2026)
+- `/users` chuyển từ bảng và hộp thoại sang bố cục3/7: tìm/lọc/chọn tài khoản bên trái, tạo/sửa trực tiếp bên phải. Trên điện thoại xếp dọc. Giữ nguyên kiểm tra vai trò, tự khóa/hạ quyền, quản trị cuối cùng, phân công lớp và thu hồi phiên. Lưu xong xóa mật khẩu khỏi biểu mẫu; khóa lựa chọn khi đang lưu.
+- `/permissions` chọn vai trò bên trái30%, thiết lập quyền bên phải70%; giữ draft theo vai trò, phụ thuộc quyền, giới hạn hai vai trò và ADMIN bảo vệ như cũ.
+- Thay quyết định căn giữa tất cả tiêu đề ở phase trước: tiêu đề và nội dung cùng trục theo từng cột. Chữ/liên hệ/lịch căn trái, trạng thái/số lượng căn giữa, thao tác căn phải. Bỏ khoảng đệm icon của nút sắp xếp; không có đường kẻ dọc.
+- Bộ lọc `/courses` dùng grid theo chiều rộng container thật: một hàng khi đủ chỗ, ba/hai cột ở vùng hẹp, một cột trên điện thoại; tìm kiếm không ép tất cả ô xuống dòng. Ô ngày190px trong hàng rộng để hiển thị đủ định dạng, giới hạn từ/đến tương ứng.
+- Tổng quan lớp và bốn nút thuộc layout dùng chung. Chọn Học viên/Buổi học/Chứng từ/Thông tin chỉ đổi panel bên dưới; URL và Back/Forward giữ hoạt động. Giữ vị trí cuộn khi chuyển giữa các mục cùng lớp. Trang điểm danh chi tiết vẫn có khung tập trung riêng.
+- Từng trang con vẫn kiểm tra quyền mới từ máy chủ, không dùng layout được cache thay cho kiểm tra quyền. Layout chỉ lấy số liệu tổng hợp tối thiểu trong phạm vi lớp, không đưa định danh lên phần chung. Khi không có quyền xem đăng ký, ẩn số liệu và các mục tương ứng.
+- Bảng Học viên tập trung hồ sơ/liên hệ/trạng thái; thanh toán chuyển sang bảng Chứng từ cùng hóa đơn/GCN-GXN/bàn giao. Chứng từ không có nút xóa đăng ký, mở Cập nhật vào đúng phần chứng từ.
+- Chỉ chạy các kiểm tra liên quan đến thay đổi theo yêu cầu người dùng; không chạy toàn bộ bộ kiểm thử.
+
+
+## Phase02l — Email tài khoản, vai trò mới và Tổng quan (17/10/2026)
+- Bỏ nút Làm mới ở Hồ sơ học viên; giữ nguyên tìm kiếm và bộ lọc.
+- Tài khoản có email khôi phục riêng, chuẩn hóa chữ thường và chống trùng. Giữ bố cục3/7, chọn được các vai trò mới. Các chốt tự khóa/hạ quyền, quản trị cuối cùng, lớp đang phân công và thu hồi phiên vẫn giữ nguyên.
+- Thêm vai trò có tên riêng theo nền nghiệp vụ Quản lý lớp/Kế toán; quyền dạng ô chọn, kiểm tra phụ thuộc và giới hạn nghiệp vụ ở máy chủ. Nền nghiệp vụ không đổi sau khi tạo; ADMIN bảo vệ. Kiểm tra phiên bản khi lưu, quyền có hiệu lực từ yêu cầu tiếp theo, không lấy quyền cũ từ phiên đăng nhập.
+- Mọi tài khoản hoạt động được xem Tổng quan. Thống kê/hồ sơ theo quyền và phạm vi lớp; quản lý chỉ thấy lớp được giao. Tài khoản chưa có quyền nghiệp vụ thấy lời chào/hướng dẫn; thống kê truy cập toàn hệ thống dành cho ADMIN. Dashboard là quyền luôn có trong trình chọn.
+- Thêm Quên mật khẩu ở đăng nhập: email → mã6số → mật khẩu mới và xác nhận. Phản hồi chung cho email có/không tồn tại; HMAC domain riêng, mã10phút/một lần, tối đa5lần sai, giới hạn theo email/IP/challenge. Không lưu mã rõ; đổi email/tài khoản hoặc yêu cầu mã mới vô hiệu mã cũ; đổi mật khẩu thu hồi phiên và xóa khóa đăng nhập cũ. Có thư thông báo sau khi đổi, không tự đăng nhập.
+- Email dùng outbox có lease, tối đa5lần gửi và lùi thời gian khi lỗi; after thử gửi sau phản hồi, lệnh email:search chạy cả hàng đợi tra cứu và khôi phục. SMTP chưa cấu hình ở môi trường hiện tại: chưa xác minh gửi đến hộp thư thật.
+- Migration20261017000400 chỉ bổ sung cột/bảng/index/FK, không xóa hồ sơ hiện có. Đã kiểm thử toàn bộ migrations trên schema cô lập, sao lưu và phục hồi thử trước migrate deploy; không resetDB. Bản sao lưu có8đăng ký/6migration trước thay đổi, schema hiện có7migration.
+
+### Validation
+- test:account-access PASS: email duy nhất, vai trò mới/phân công/phạm vi/thu hồi/concurrent version, Tổng quan luôn có, phản hồi khôi phục không lộ tồn tại, hashOTP/hết hạn/một lần/5lần sai/retrySMTP, resetpassword/session/login-lock, chống replay đồng thời, vô hiệu khi đổiemail/khóaTK. Dùng sender giả, không gửi email thật.
+- test:rbac PASS trong schema cô lập: quyền cũ, phụ thuộc và chặn quyền ngoài phạm vi vẫn đúng.
+- Build thành công, TypeScript và targeted ESLint đạt; private-artifact gate đạt.
+- Browser cô lập2/2PASS10.8s: trang/menu/action cũ sau thu hồi; tạo vai trò, email, Tổng quan theo phạm vi, trang reset và đăng xuất phiên. Review ảnh1440/390px, không tràn trang.
+- Targeted browser2/2PASS9.3s: tạo/sửaTK/đổi vai trò/password/khóa và tìm/lọc/phân trang Hồ sơ học viên. Không chạy toàn bộsuite.
+- Kiểm tra bảo toàn8đăngký/8hồsơ/4hashfile riêng tư,7hồsơcầnđốichiếu,0unlinked/orphan/fixture.
+
+### Rollback / vận hành
+Giữ các bảng/cột mới nếu tạm quay UI về phiên bản cũ; không xóa dữ liệu email/vai trò/reset để rollback. Cần cấu hình SMTP thật và chạy worker bền vững để có retry khi tiến trình bị dừng. Không thay đổi file định danh, thông tin thanh toán hoặc các hồ sơ thật.

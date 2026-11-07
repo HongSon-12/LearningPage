@@ -29,6 +29,8 @@ export const userInput = z
           (value.length >= 10 && new TextEncoder().encode(value).length <= 72),
         "Mật khẩu cần ít nhất 10 ký tự và tối đa 72 byte (chữ có dấu chiếm nhiều byte).",
       ),
+    email: z.union([z.email("Email không hợp lệ.").max(254), z.literal("")]).optional(),
+    customRoleId: z.union([z.uuid(), z.literal("")]).optional(),
     role: z.enum(["ADMIN", "CLASS_MANAGER", "ACCOUNTANT"]),
     active: z.boolean(),
   })
@@ -37,3 +39,10 @@ export const userInput = z
     message: "Nhập mật khẩu cho tài khoản mới.",
   });
 export type UserInput = z.infer<typeof userInput>;
+
+// Directory identity fields are displayed read-only; only role/access are submitted to the server.
+export const ssoUserEditorInput = z.object({
+  id:z.uuid(), username:z.string().min(1).max(150), password:z.string().max(0),
+  email:z.string().optional(), customRoleId:z.union([z.uuid(),z.literal("")]).optional(),
+  role:z.enum(["ADMIN","CLASS_MANAGER","ACCOUNTANT"]), active:z.boolean(),
+});

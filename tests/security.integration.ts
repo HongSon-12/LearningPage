@@ -1,5 +1,6 @@
 import "dotenv/config";
 import assert from "node:assert/strict";
+import sharp from "sharp";
 import { randomUUID, randomBytes } from "node:crypto";
 import {
   readdir,
@@ -105,7 +106,7 @@ async function main() {
       },
     });
     const png = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aL1sAAAAASUVORK5CYII=",
+      "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAIAAABLbSncAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAD0lEQVQImWP4jwMwDC0JALoev0GybL49AAAAAElFTkSuQmCC",
       "base64",
     );
     const image = () => new File([png], "synthetic.png", { type: "image/png" });
@@ -227,7 +228,7 @@ async function main() {
     const file = await prisma.storedFile.findUniqueOrThrow({
       where: { id: upload.fileId },
     });
-    assert.deepEqual(await readPrivate(file.storageKey), png);
+    assert.deepEqual(await sharp(await readPrivate(file.storageKey)).raw().toBuffer(), await sharp(png).raw().toBuffer());
     assert.equal((await stat(folder)).mode & 0o777, 0o700);
     assert.equal(
       (await stat(folder + "/" + file.storageKey)).mode & 0o777,

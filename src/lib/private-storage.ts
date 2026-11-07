@@ -3,13 +3,9 @@ import { mkdir, realpath, open, unlink, chmod } from "node:fs/promises";
 import { resolve, join, relative, isAbsolute } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { RequestError } from "@/lib/security";
-export const MAX_FILE_BYTES = 5 * 1024 * 1024;
-const types: Record<string, string> = {
-  "image/png": "png",
-  "image/jpeg": "jpg",
-  "image/webp": "webp",
-  "application/pdf": "pdf",
-};
+import sharp from "sharp";
+import { MAX_FILE_BYTES, uploadTypes as types } from "./upload-policy";
+export { MAX_FILE_BYTES } from "./upload-policy";
 export function inspectFile(name: string, mime: string, buffer: Buffer) {
   const ext = types[mime];
   if (
@@ -48,6 +44,22 @@ export function inspectFile(name: string, mime: string, buffer: Buffer) {
             buffer.subarray(8, 12).toString() === "WEBP";
   if (!valid) throw new RequestError("Nội dung file không đúng định dạng.");
   return { ext, sha256: createHash("sha256").update(buffer).digest("hex") };
+}
+/** Decode every image and re-encode without EXIF/GPS; PDF remains a downloaded document. */
+export async function prepareUpload(name:string,mime:string,input:Buffer) {
+  const inspected=inspectFile(name,mime,input);
+  if(inspected.ext==="pdf")return {buffer:input,...inspected};
+  try {
+    const decoder=sharp(input,{limitInputPixels:25_000_000,failOn:"warning",animated:false});
+    const metadata=await decoder.metadata();
+    if(metadata.format!==({jpg:"jpeg",png:"png",webp:"webp"} as const)[inspected.ext as "jpg"|"png"|"webp"] || !metadata.width || !metadata.height || (metadata.pages??1)>1) throw new Error("INVALID_IMAGE");
+    const buffer=await decoder.rotate().toFormat(inspected.ext === "jpg" ? "jpeg" : inspected.ext as "png"|"webp").toBuffer();
+    if(buffer.length>MAX_FILE_BYTES)throw new RequestError("Ảnh sau xử lý vượt 5 MB. Hãy giảm kích thước hoặc chọn ảnh JPG nhỏ hơn.");
+    return {buffer,ext:inspected.ext,sha256:createHash("sha256").update(buffer).digest("hex")};
+  }catch(error){
+    if(error instanceof RequestError)throw error;
+    throw new RequestError("Ảnh hỏng, không đọc được hoặc quá lớn (tối đa 25 triệu điểm ảnh). Hãy chụp lại hoặc chọn ảnh khác.");
+  }
 }
 // Files are runtime data from a private volume. They must never enter Next output tracing.
 export async function storageRoot() {

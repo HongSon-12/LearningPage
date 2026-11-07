@@ -3,7 +3,7 @@
 import React, { useEffect } from "react";
 import { motion, type Variants } from "framer-motion";
 import { Calendar, Clock, Users, ArrowRight } from "lucide-react";
-import Link from "next/link";
+import {PendingLink as Link} from "@/components/navigation/navigation-feedback";
 import { trackEvent } from "@/app/actions/tracking";
 
 export type CourseData = {

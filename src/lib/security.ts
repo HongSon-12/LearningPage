@@ -1,15 +1,9 @@
 import { createHash } from "node:crypto";
 import prisma from "@/lib/prisma";
+import {RequestError,publicError} from "./errors";
+export {RequestError} from "./errors";
 export const hashSecret = (value: string) =>
   createHash("sha256").update(value).digest("hex");
-export class RequestError extends Error {
-  constructor(
-    message: string,
-    public status = 400,
-  ) {
-    super(message);
-  }
-}
 export function assertOrigin(request: Request) {
   const expected =
     process.env.APP_ORIGIN ||
@@ -88,9 +82,7 @@ export function errorResponse(error: unknown) {
   return Response.json(
     {
       success: false,
-      error: known
-        ? error.message
-        : "Không thể xử lý yêu cầu. Vui lòng thử lại.",
+      error: publicError(error),
     },
     {
       status: known ? error.status : 500,

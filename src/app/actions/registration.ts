@@ -1,4 +1,7 @@
 "use server";
+import {RequestError} from "@/lib/errors";
+
+import { invalidatePublicClasses } from "@/lib/public-classes";
 import { canonicalCccd } from "@/lib/student-identity";
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
@@ -23,7 +26,7 @@ export async function createRegistration(
       30,
       60 * 60 * 1000,
     );
-    if (!canonicalCccd(data.cccd)) throw new Error("CCCD phải gồm 12 chữ số.");
+    if (!canonicalCccd(data.cccd)) throw new RequestError("CCCD phải gồm 12 chữ số.");
     const { registration, created } = await reserveOnline(data);
     if (created && data.email) {
       const mailer = await import("@/lib/mailer");
@@ -40,6 +43,7 @@ export async function createRegistration(
         )
         .catch(console.error);
     }
+    invalidatePublicClasses();
     revalidatePath("/courses", "layout");
     revalidatePath("/hocsocapcuu/courses");
     revalidatePath("/", "layout");
@@ -60,13 +64,13 @@ export async function updatePaymentReceipt(
 ) {
   try {
     if (!validCapability(receiptToken))
-      throw new Error("Phiên đăng ký không hợp lệ.");
+      throw new RequestError("Phiên đăng ký không hợp lệ.");
     await rateLimit("receipt", digest(receiptToken), 12, 60 * 60 * 1000);
     await rosterTransaction(async (tx) => {
       const reg = await tx.registration.findUnique({ where: { id } });
       const receiptTokenHash = digest(receiptToken);
       if (!reg || reg.receiptTokenHash !== receiptTokenHash)
-        throw new Error("Bạn không có quyền cập nhật biên lai này.");
+        throw new RequestError("Bạn không có quyền cập nhật biên lai này.");
       const files = await bindRegistrationFiles(
         tx,
         id,

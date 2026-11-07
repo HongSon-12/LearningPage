@@ -1,9 +1,11 @@
 "use client";
 
+import { ScrollReveal } from "./ScrollReveal";
 import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence, type Variants } from "framer-motion";
-import { CheckCircle2, Award } from "lucide-react";
-import Link from "next/link";
+import Image from "next/image";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
+import { CheckCircle2, Award, ArrowDown } from "lucide-react";
+import {PendingLink as Link} from "@/components/navigation/navigation-feedback";
 import { trackEvent } from "@/app/actions/tracking";
 
 const heroImages = [
@@ -13,10 +15,7 @@ const heroImages = [
   "/Picture/p3-cprclass-ml0225-gi1405064013.jpg"
 ];
 
-const fadeInUp: Variants = {
-  hidden: { opacity: 0, y: 30 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
-};
+
 
 export default function LandingSections() {
   const [[page, direction], setPage] = useState([0, 0]);
@@ -65,12 +64,12 @@ export default function LandingSections() {
   };
 
   return (
-    <div className="space-y-32">
+    <MotionConfig reducedMotion="never">
+    <div data-slot="community-landing" className="space-y-12 md:space-y-16">
       
       {/* 1. HERO SECTION */}
-      <section className="pt-12 pb-20 flex flex-col md:flex-row items-center gap-12">
-        <motion.div 
-          initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp}
+      <section data-slot="community-hero" className="pt-4 pb-0 flex flex-col md:flex-row items-center gap-12">
+        <ScrollReveal
           onViewportEnter={() => handleTrack("view_hero")}
           className="flex-1 space-y-8"
         >
@@ -101,18 +100,16 @@ export default function LandingSections() {
             <div className="flex items-center gap-3"><CheckCircle2 className="text-[var(--color-brand-500)]" size={20} /> Giảng viên là bác sĩ, điều dưỡng TTCC115</div>
             <div className="flex items-center gap-3"><CheckCircle2 className="text-[var(--color-brand-500)]" size={20} /> Chương trình được Sở Y tế công nhận</div>
           </div>
-        </motion.div>
+        </ScrollReveal>
 
-        <motion.div 
-          initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeInUp}
+        <ScrollReveal
           className="flex-1 w-full max-w-lg relative"
         >
           <div className="absolute inset-0 bg-blue-100 rounded-full blur-[100px] opacity-60"></div>
           <div className="glass-card rounded-3xl relative z-10 aspect-square border-4 border-white shadow-2xl overflow-hidden bg-gray-100 flex items-center justify-center">
             <AnimatePresence initial={false} custom={direction}>
-              <motion.img
+              <motion.div
                 key={page}
-                src={heroImages[imageIndex]}
                 custom={direction}
                 variants={slideVariants}
                 initial="enter"
@@ -122,9 +119,8 @@ export default function LandingSections() {
                   x: { type: "spring", stiffness: 300, damping: 30 },
                   opacity: { duration: 0.2 }
                 }}
-                alt="Thực hành sơ cấp cứu"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
+                className="absolute inset-0 w-full h-full"
+              ><Image src={heroImages[imageIndex]} alt="Thực hành sơ cấp cứu" fill sizes="(max-width: 768px) 100vw, 512px" loading={imageIndex === 0 ? "eager" : "lazy"} fetchPriority={imageIndex === 0 ? "high" : "auto"} className="object-cover" /></motion.div>
             </AnimatePresence>
             <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2 z-20">
               {heroImages.map((_, idx) => (
@@ -139,25 +135,27 @@ export default function LandingSections() {
                   className={`w-2 h-2 rounded-full transition-all ${
                     idx === imageIndex ? "bg-white w-6" : "bg-white/50 hover:bg-white/80"
                   }`}
-                  aria-label={`Go to slide ${idx + 1}`}
+                  aria-label={`Xem ảnh thực hành ${idx + 1}`}
                 />
               ))}
             </div>
           </div>
-        </motion.div>
+          <a href="#tinh-huong" className="relative z-10 mt-4 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+            Xem tiếp: Những tình huống thường gặp <ArrowDown size={18} aria-hidden="true" />
+          </a>
+        </ScrollReveal>
       </section>
 
       {/* 2. PROBLEM SECTION */}
-      <section className="py-12">
-        <motion.div 
-          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={fadeInUp} 
+      <section id="tinh-huong" tabIndex={-1} aria-labelledby="tinh-huong-title" className="py-4 outline-none md:py-6">
+        <ScrollReveal
           onViewportEnter={() => handleTrack("view_problem")}
-          className="text-center max-w-3xl mx-auto mb-16 space-y-4"
+          className="text-center max-w-3xl mx-auto mb-8 md:mb-10 space-y-4"
         >
           <span className="text-[var(--color-accent)] font-bold tracking-widest uppercase text-sm">Vấn đề thực tế</span>
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">Tai nạn không báo trước — và người ở bên cạnh thường không phải bác sĩ</h2>
+          <h2 id="tinh-huong-title" className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">Tai nạn không báo trước — và người ở bên cạnh thường không phải bác sĩ</h2>
           <p className="text-gray-600 text-lg">Trong những phút đầu tiên của một ca nguy cấp, người quyết định sự sống không phải bác sĩ — mà là người đang ở ngay đó. Rất có thể, đó là bạn.</p>
-        </motion.div>
+        </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {[
@@ -165,30 +163,28 @@ export default function LandingSections() {
             { icon: "🧓", title: "Người thân đột quỵ", desc: "Bố mẹ bỗng méo miệng, yếu liệt nửa người lúc nửa đêm." },
             { icon: "💼", title: "Đồng nghiệp ngã gục", desc: "Một người gục xuống tại văn phòng, ngừng thở khi chưa ai biết phải làm gì." }
           ].map((item, i) => (
-            <motion.div 
+            <ScrollReveal
               key={i} 
-              initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} variants={fadeInUp}
               className="glass-card p-8 rounded-2xl border-l-4 border-l-[var(--color-accent)] hover:-translate-y-2 transition-transform"
             >
               <div className="text-4xl mb-4">{item.icon}</div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">{item.title}</h3>
               <p className="text-gray-600 font-medium leading-relaxed">{item.desc}</p>
-            </motion.div>
+            </ScrollReveal>
           ))}
         </div>
       </section>
 
       {/* 3. AGITATE / STATS */}
       <section className="py-16 px-4 md:px-8 bg-blue-50/50 rounded-3xl border border-blue-100">
-        <motion.div 
-          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={fadeInUp} 
+        <ScrollReveal
           onViewportEnter={() => handleTrack("view_consequences")}
-          className="text-center max-w-3xl mx-auto mb-16 space-y-4"
+          className="text-center max-w-3xl mx-auto mb-8 md:mb-10 space-y-4"
         >
           <span className="text-[var(--color-brand-600)] font-bold tracking-widest uppercase text-sm">Hệ quả</span>
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">Mỗi giây chậm trễ, cơ hội sống trôi đi</h2>
           <p className="text-gray-600 text-lg">Não chỉ chịu được vài phút thiếu oxy, trong khi xe cấp cứu khó vượt kẹt xe trong khung giờ vàng. Nếu không ai bên cạnh biết phải làm gì, một sinh mạng đáng lẽ cứu được sẽ mất đi.</p>
-        </motion.div>
+        </ScrollReveal>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
           {[
@@ -197,29 +193,27 @@ export default function LandingSections() {
             { num: "1.000+", label: "Học viên" },
             { num: "25 năm", label: "Kinh nghiệm" },
           ].map((stat, i) => (
-            <motion.div 
+            <ScrollReveal
               key={i} 
-              initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} variants={fadeInUp}
               className="bg-white p-4 md:p-6 rounded-2xl text-center shadow-sm border border-gray-100"
             >
               <div className="text-2xl md:text-4xl font-extrabold text-[var(--color-accent)] mb-2">{stat.num}</div>
               <div className="text-xs md:text-sm font-medium text-gray-500 uppercase tracking-wide">{stat.label}</div>
-            </motion.div>
+            </ScrollReveal>
           ))}
         </div>
       </section>
 
       {/* 4. MODULES */}
-      <section id="chuong-trinh" className="py-12">
-        <motion.div 
-          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={fadeInUp} 
+      <section id="chuong-trinh" className="py-4 md:py-6">
+        <ScrollReveal
           onViewportEnter={() => handleTrack("view_modules")}
-          className="text-center max-w-3xl mx-auto mb-16 space-y-4"
+          className="text-center max-w-3xl mx-auto mb-8 md:mb-10 space-y-4"
         >
           <span className="text-[var(--color-brand-600)] font-bold tracking-widest uppercase text-sm">Chương trình</span>
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">Nội dung khóa học — 6 Module</h2>
           <p className="text-gray-600 text-lg">Thực hành 70%, lý thuyết 30%. Học trên mô hình và dụng cụ thật.</p>
-        </motion.div>
+        </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {[
@@ -230,9 +224,8 @@ export default function LandingSections() {
             { num: "5", title: "Cố định gãy xương", desc: "Cố định tạm tay, chân, cột sống cổ trước khi xe đến." },
             { num: "6", title: "Tình huống đặc biệt", desc: "Đuối nước, điện giật, ngộ độc, co giật, sốt cao trẻ em." }
           ].map((mod, i) => (
-            <motion.div 
+            <ScrollReveal
               key={i} 
-              initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} variants={fadeInUp}
               className="glass-card p-6 rounded-2xl flex gap-6 items-start"
             >
               <div className="w-12 h-12 flex-shrink-0 bg-[var(--color-brand-600)] text-white text-xl font-bold rounded-xl flex items-center justify-center">
@@ -242,39 +235,36 @@ export default function LandingSections() {
                 <h3 className="text-lg font-bold text-gray-900 mb-2">{mod.title}</h3>
                 <p className="text-gray-600 font-medium">{mod.desc}</p>
               </div>
-            </motion.div>
+            </ScrollReveal>
           ))}
         </div>
       </section>
 
       {/* 5. INSTRUCTORS */}
       <section className="py-8">
-        <motion.div 
-          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={fadeInUp}
+        <ScrollReveal
           className="bg-orange-50 border border-orange-200 border-l-4 border-l-orange-500 rounded-2xl p-6 md:p-12 flex flex-col md:flex-row items-center gap-6 shadow-sm text-center md:text-left"
         >
           <div className="text-5xl">🩺</div>
           <p className="text-lg md:text-xl text-gray-800 leading-relaxed font-medium">
             <strong className="text-[var(--color-brand-900)]">Đội ngũ giảng viên là bác sĩ, điều dưỡng đang công tác tại Trung tâm Cấp cứu 115 TP.HCM</strong> — những người trực tiếp cấp cứu hàng ngày trên xe cứu thương.
           </p>
-        </motion.div>
+        </ScrollReveal>
       </section>
 
       {/* 6. PRICING */}
-      <section id="hoc-phi" className="py-12">
-        <motion.div 
-          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.2 }} variants={fadeInUp} 
+      <section id="hoc-phi" className="py-4 md:py-6">
+        <ScrollReveal
           onViewportEnter={() => handleTrack("view_pricing")}
-          className="text-center max-w-3xl mx-auto mb-16 space-y-4"
+          className="text-center max-w-3xl mx-auto mb-8 md:mb-10 space-y-4"
         >
           <span className="text-[var(--color-brand-600)] font-bold tracking-widest uppercase text-sm">Học phí công khai</span>
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">Chọn gói phù hợp</h2>
           <p className="text-gray-600 text-lg">Học phí minh bạch, đóng trực tiếp cho Trung tâm Cấp cứu 115 TP.HCM.</p>
-        </motion.div>
+        </ScrollReveal>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          <motion.div 
-            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} variants={fadeInUp}
+          <ScrollReveal
             className="glass-card p-6 md:p-8 rounded-3xl border-2 border-orange-400 relative shadow-xl hover:-translate-y-2 transition-transform bg-white"
           >
             <div className="absolute -top-4 left-8 bg-orange-400 text-white font-bold px-4 py-1 rounded-full text-xs md:text-sm tracking-wider">
@@ -296,10 +286,9 @@ export default function LandingSections() {
             <Link href="/hocsocapcuu/courses" className="block w-full py-4 text-center bg-[var(--color-accent)] hover:bg-rose-700 text-white font-bold rounded-xl transition-colors">
               CHỌN LỚP KHAI GIẢNG
             </Link>
-          </motion.div>
+          </ScrollReveal>
 
-          <motion.div 
-            initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.1 }} variants={fadeInUp}
+          <ScrollReveal
             className="glass-card p-6 md:p-8 rounded-3xl border-2 border-gray-200 bg-white"
           >
             <h3 className="text-2xl font-bold text-gray-900 mb-2 mt-4">Gói Doanh nghiệp</h3>
@@ -317,15 +306,14 @@ export default function LandingSections() {
             <a href="tel:0387644522" className="block w-full py-4 text-center border-2 border-[var(--color-brand-600)] text-[var(--color-brand-600)] hover:bg-[var(--color-brand-50)] font-bold rounded-xl transition-colors">
               📞 BS Vĩnh Lộc – 0387 644 522
             </a>
-          </motion.div>
+          </ScrollReveal>
         </div>
       </section>
 
       {/* 7. BOTTOM CTA */}
       <section className="py-16 text-center bg-[var(--color-brand-900)] text-white rounded-3xl relative overflow-hidden">
         <div className="absolute inset-0 bg-blue-500 mix-blend-multiply opacity-50 blur-[100px] pointer-events-none"></div>
-        <motion.div 
-          initial="hidden" whileInView="visible" viewport={{ once: true, amount: 0.5 }} variants={fadeInUp}
+        <ScrollReveal
           onViewportEnter={() => handleTrack("view_cta_bottom")}
           className="relative z-10 space-y-6 px-4"
         >
@@ -337,9 +325,10 @@ export default function LandingSections() {
               📅 Đăng ký ngay
             </Link>
           </div>
-        </motion.div>
+        </ScrollReveal>
       </section>
 
     </div>
+    </MotionConfig>
   );
 }

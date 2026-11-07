@@ -1,19 +1,24 @@
 "use server";
+import {RequestError} from "@/lib/errors";
+
 import { requireUser } from "@/lib/auth";
 import {
   registrationData,
+  lockClasses,
   rosterTransaction,
   errorMessage,
 } from "@/lib/admissions";
 import { canonicalCccd } from "@/lib/student-identity";
+import { lockStudentIdentities } from "@/lib/students";
+import { freshActor } from "@/lib/rbac";
 import { revalidatePath } from "next/cache";
 export async function confirmStudentProfile(id: string, form: FormData) {
   try {
     const actor = await requireUser(["ADMIN"]);
     if (form.get("confirmed") !== "on")
-      throw new Error("Cần xác nhận đã đối chiếu thông tin với học viên.");
+      throw new RequestError("Cần xác nhận đã đối chiếu thông tin với học viên.");
     const cccd = canonicalCccd(String(form.get("cccd") || ""));
-    if (!cccd) throw new Error("CCCD phải gồm 12 chữ số.");
+    if (!cccd) throw new RequestError("CCCD phải gồm 12 chữ số.");
     const data = registrationData({
       classId: "profile",
       fullName: String(form.get("fullName") || ""),
@@ -23,11 +28,17 @@ export async function confirmStudentProfile(id: string, form: FormData) {
       cccd,
     });
     await rosterTransaction(async (tx) => {
+      const current=await freshActor(actor,tx);
+      if(current.role!=="ADMIN")throw new RequestError("Bạn không có quyền thực hiện thao tác này.");
+      const previous=await tx.student.findUniqueOrThrow({where:{id},select:{cccd:true}});
+      const registrations=await tx.registration.findMany({where:{studentId:id},select:{classId:true}});
+      await lockClasses(tx,registrations.map(row=>row.classId));
+      await lockStudentIdentities(tx,[previous.cccd,cccd]);
       await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${"student-lookup:" + id}))`;
       const student = await tx.student.findUniqueOrThrow({ where: { id } });
       const duplicate = await tx.student.findUnique({ where: { cccd } });
       if (duplicate && duplicate.id !== id)
-        throw new Error(
+        throw new RequestError(
           "CCCD đã thuộc một hồ sơ học viên khác. Cần đối chiếu trước khi gộp hồ sơ.",
         );
       await tx.student.update({

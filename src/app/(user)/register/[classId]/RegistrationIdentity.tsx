@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {OtpInput} from "@/components/ui/otp-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestRegistrationProfile, verifyRegistrationProfile } from "@/app/actions/registration-profile";
@@ -84,9 +85,8 @@ export function RegistrationIdentity({ cccd, unlocked, returning, disabled = fal
           <p role="status" className="rounded-lg bg-blue-50 p-3 text-sm leading-6 text-blue-900">{message}</p>
           <div className="space-y-2">
             <Label htmlFor="signup-otp">Mã xác thực email</Label>
-            <Input id="signup-otp" required autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} disabled={disabled || busy}
-              value={code} onChange={event => setCode(event.target.value.replace(/[^0-9]/g, "").slice(0, 6))}
-              className="max-w-xs text-center tracking-[0.3em] tabular-nums" placeholder="6 chữ số" />
+            <OtpInput id="signup-otp" disabled={disabled || busy} value={code} onValueChange={setCode}/>
+
             <p className="text-[13px] leading-5 text-muted-foreground">Mã có hiệu lực 10 phút và chỉ dùng một lần.</p>
           </div>
         </>}

@@ -1,4 +1,5 @@
 "use client";
+import {LoaderCircle} from "lucide-react";
 import { useRef, type ReactNode } from "react";
 import {
   Dialog,
@@ -14,7 +15,9 @@ export default function AdminDialog({
   onClose,
   returnFocusId,
   initialFocusId,
+  busy = false,
 }: {
+  busy?: boolean;
   title: string;
   subtitle?: string;
   children: ReactNode;
@@ -28,10 +31,14 @@ export default function AdminDialog({
     <Dialog
       open
       onOpenChange={(value) => {
-        if (!value) onClose();
+        if (!value && !busy) onClose();
       }}
     >
       <DialogContent
+        aria-busy={busy}
+        showCloseButton={!busy}
+        onEscapeKeyDown={event=>{if(busy)event.preventDefault();}}
+        onPointerDownOutside={event=>{if(busy)event.preventDefault();}}
         onOpenAutoFocus={(event) => {
           focusId.current = returnFocusId;
           returnFocus.current =
@@ -64,7 +71,7 @@ export default function AdminDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="max-h-[calc(90dvh-120px)] overflow-y-auto p-5 sm:p-6">
-          {children}
+          {busy&&<p role="status" className="mb-4 flex items-center gap-2 text-sm text-muted-foreground"><LoaderCircle className="size-4 animate-spin" aria-hidden="true"/>Đang xử lý, vui lòng chờ…</p>}<fieldset disabled={busy} className="min-w-0">{children}</fieldset>
         </div>
       </DialogContent>
     </Dialog>

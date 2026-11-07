@@ -1,25 +1,26 @@
 "use client";
 import { useState, type FormEvent } from "react";
-import { Save, Loader2, Landmark, Info, CheckCircle, CreditCard } from "lucide-react";
+import { Save, Loader2, Landmark, Info, CheckCircle } from "lucide-react";
 import { updateSettings } from "@/app/actions/settings";
+import { paymentReference } from "@/lib/payment-content";
 import { fieldClass, primaryButton } from "../components/AdminUI";
 
 type SettingData={bankName:string;accountName:string;accountNumber:string;transferSyntax:string;googleAnalyticsId:string|null;facebookPixelId:string|null;microsoftClarityId:string|null};
 export default function SettingsForm({initialData}:{initialData:SettingData}) {
- const [values,setValues]=useState({bankName:initialData.bankName,accountName:initialData.accountName,accountNumber:initialData.accountNumber,transferSyntax:initialData.transferSyntax||"{CLASS_CODE} {NAME}"});
+ const [values,setValues]=useState({bankName:initialData.bankName,accountName:initialData.accountName,accountNumber:initialData.accountNumber});
  const [busy,setBusy]=useState(false);const [message,setMessage]=useState<{text:string;success:boolean}|null>(null);
  async function submit(event:FormEvent<HTMLFormElement>) {
   event.preventDefault();setBusy(true);setMessage(null);
   try {const result=await updateSettings(new FormData(event.currentTarget));setMessage({text:result.success?"Đã lưu cấu hình thanh toán.":result.error||"Không thể lưu cấu hình.",success:result.success});}
   catch {setMessage({text:"Không thể lưu cấu hình. Vui lòng thử lại.",success:false});}finally{setBusy(false);}
  }
- const example=values.transferSyntax.replace(/{CLASS_CODE}/g,"CD2026").replace(/\[Mã Lớp\]/gi,"CD2026").replace(/{NAME}/g,"NGUYEN VAN A").replace(/\[Họ Tên\]/gi,"NGUYEN VAN A");
+ const example=paymentReference("CD2026", "Nguyễn Văn A");
  return <form onSubmit={submit} className="space-y-5">
   {["googleAnalyticsId","facebookPixelId","microsoftClarityId"].map(key=><input key={key} type="hidden" name={key} value={initialData[key as keyof SettingData]||""}/>)}
   <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
    <div className="space-y-5">
     <section className="rounded-2xl border border-slate-200 bg-white"><header className="flex items-center gap-3 border-b border-slate-100 p-5"><span className="rounded-xl bg-blue-50 p-2.5 text-blue-600"><Landmark size={20}/></span><div><h2 className="font-semibold text-slate-900">Tài khoản thụ hưởng</h2><p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500">Thông tin dùng để tạo mã QR thanh toán.</p></div></header><div className="grid gap-5 p-5 sm:p-6"><label className="space-y-2 text-sm font-medium text-slate-700">Ngân hàng thụ hưởng<input name="bankName" required value={values.bankName} onChange={e=>setValues({...values,bankName:e.target.value})} placeholder="VD: Vietcombank" className={fieldClass}/></label><div className="grid gap-5 md:grid-cols-2"><label className="space-y-2 text-sm font-medium text-slate-700">Tên chủ tài khoản<input name="accountName" required value={values.accountName} onChange={e=>setValues({...values,accountName:e.target.value})} className={fieldClass}/></label><label className="space-y-2 text-sm font-medium text-slate-700">Số tài khoản<input name="accountNumber" required inputMode="numeric" value={values.accountNumber} onChange={e=>setValues({...values,accountNumber:e.target.value})} className={fieldClass}/></label></div></div></section>
-    <section className="rounded-2xl border border-slate-200 bg-white"><header className="flex items-center gap-3 border-b border-slate-100 p-5"><span className="rounded-xl bg-violet-50 p-2.5 text-violet-600"><CreditCard size={20}/></span><div><h2 className="font-semibold text-slate-900">Nội dung chuyển khoản</h2><p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500">Giúp xác định lớp học và người thanh toán.</p></div></header><div className="space-y-4 p-5 sm:p-6"><label className="block space-y-2 text-sm font-medium text-slate-700">Cú pháp chuyển khoản<input name="transferSyntax" required value={values.transferSyntax} onChange={e=>setValues({...values,transferSyntax:e.target.value})} className={fieldClass}/></label><div className="rounded-xl bg-slate-50 px-4 py-3 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 leading-6 text-slate-600"><span className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono">{"{CLASS_CODE}"}</span> được thay bằng mã lớp.<br/><span className="rounded border border-slate-200 bg-white px-1.5 py-0.5 font-mono">{"{NAME}"}</span> được thay bằng họ tên học viên.</div></div></section>
+
    </div>
    <aside className="space-y-4 xl:sticky xl:top-4"><section className="overflow-hidden rounded-2xl border border-blue-100 bg-white"><div className="bg-blue-50 px-5 py-4"><p className="text-[length:var(--ui-caption-size,0.8125rem)] leading-5 font-semibold uppercase tracking-wider text-blue-600">Xem trước thông tin</p><h2 className="mt-1 font-semibold text-slate-900">Học viên sẽ nhận được</h2></div><dl className="space-y-5 p-5 text-sm">{[["Ngân hàng",values.bankName],["Chủ tài khoản",values.accountName],["Số tài khoản",values.accountNumber],["Ví dụ chuyển khoản",example]].map(([label,value])=><div key={label}><dt className="mb-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500">{label}</dt><dd className="break-words font-medium text-slate-800">{value||"Chưa nhập"}</dd></div>)}</dl></section><div className="flex items-start gap-2 rounded-xl bg-slate-100 p-4 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-600"><Info size={16} className="mt-0.5 shrink-0"/><p>Mã QR trên trang đăng ký sẽ cập nhật sau khi bạn lưu cấu hình.</p></div></aside>
   </div>

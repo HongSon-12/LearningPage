@@ -19,7 +19,7 @@ export async function saveSession(
     const actor = await requireUser(["ADMIN", "CLASS_MANAGER"]);
     await rateLimit("session-save", actor.id, 60, 60000);
     await saveClassSession(actor, classId, id, input);
-    revalidatePath(`/courses/${classId}/sessions`, "layout");
+    revalidatePath(`/courses/${classId}`, "layout");
     return { success: true };
   } catch (error) {
     return { success: false, error: errorMessage(error) };
@@ -29,7 +29,7 @@ export async function closeSession(sessionId: string, closed: boolean) {
   try {
     const actor = await requireUser(["ADMIN", "CLASS_MANAGER"]);
     const classId = await setSessionClosed(actor, sessionId, closed);
-    revalidatePath(`/courses/${classId}/sessions`, "layout");
+    revalidatePath(`/courses/${classId}`, "layout");
     return { success: true };
   } catch (error) {
     return { success: false, error: errorMessage(error) };
@@ -67,7 +67,7 @@ export async function confirmAttendance(
       present,
       method,
     );
-    revalidatePath(`/courses/${classId}/sessions`, "layout");
+    revalidatePath(`/courses/${classId}`, "layout");
     return { success: true };
   } catch (error) {
     return { success: false, error: errorMessage(error) };

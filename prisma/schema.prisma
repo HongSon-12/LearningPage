@@ -9,10 +9,22 @@ datasource db {
 model User {
   id           String   @id @default(uuid())
   username     String   @unique
+  email        String?  @unique
+  customRoleId String?
+  customRole   CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: Restrict)
+  passwordResets PasswordResetChallenge[]
   role         UserRole @default(ADMIN)
   active       Boolean @default(true)
   sessions     Session[]
   managedClasses Class[] @relation("ClassManager")
+  ssoIssuer String?
+  ssoSubject String?
+  ssoUserId String? @unique
+  ssoUid String? @unique
+  ssoActive Boolean @default(false)
+  appAccessGranted Boolean @default(false)
+  ssoUpdatedAt DateTime?
+  @@unique([ssoIssuer, ssoSubject])
   passwordHash String
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -29,6 +41,15 @@ model Session {
   userId String
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
+  ssoIssuer String?
+  ssoSubject String?
+  ssoSid String?
+  ssoAuthAt DateTime?
+  ssoCheckedUntil DateTime?
+  ssoAccessToken String?
+  ssoIdToken String?
+  @@index([ssoIssuer, ssoSid])
+  @@index([ssoIssuer, ssoSubject])
   @@index([userId])
 }
 
@@ -185,6 +206,10 @@ model Registration {
   sessionId         String?
   createdAt         DateTime           @default(now())
   @@index([classId, status, paymentStatus])
+  @@index([classId, cccd])
+  @@index([classId, createdAt, id])
+  @@index([status, createdAt, id])
+  @@index([createdAt, id])
   @@index([cccd, createdAt])
   @@index([studentId, createdAt])
 }
@@ -197,6 +222,7 @@ model TrackingEvent {
   createdAt DateTime @default(now())
 
   @@index([sessionId])
+  @@index([sessionId, eventName])
   @@index([eventName])
 }
 
@@ -259,6 +285,8 @@ model SearchToken {
 model EmailOutbox {
   id String @id @default(uuid())
   type String @default("SEARCH_OTP")
+  passwordResetId String? @unique
+  passwordReset PasswordResetChallenge? @relation(fields: [passwordResetId], references: [id], onDelete: SetNull)
   challengeId String? @unique
   challenge LookupChallenge? @relation(fields: [challengeId], references: [id], onDelete: SetNull)
   registrationId String?
@@ -344,4 +372,79 @@ model Attendance {
   updatedAt DateTime @updatedAt
   @@unique([sessionId, registrationId])
   @@index([registrationId])
+}
+
+
+model RolePolicy {
+  role UserRole @id
+  version Int @default(1)
+  updatedAt DateTime @updatedAt
+  grants RolePermission[]
+}
+
+model RolePermission {
+  role UserRole
+  permission String
+  policy RolePolicy @relation(fields: [role], references: [role], onDelete: Cascade)
+  @@id([role, permission])
+}
+
+model CustomRole {
+  id String @id @default(uuid())
+  name String
+  nameKey String @unique
+  baseRole UserRole
+  permissions String[]
+  version Int @default(1)
+  users User[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PasswordResetChallenge {
+  id String @id @default(uuid())
+  userId String?
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emailHash String
+  accountUpdatedAt DateTime?
+  codeHash String?
+  expiresAt DateTime?
+  failedAttempts Int @default(0)
+  usedAt DateTime?
+  emailJob EmailOutbox?
+  createdAt DateTime @default(now())
+  @@index([userId, createdAt])
+  @@index([emailHash, createdAt])
+}
+
+// Short-lived, browser-bound OIDC transactions. Only a hash of the cookie is stored.
+model SsoFlow {
+  id String @id
+  kind String
+  stateHash String
+  verifier String?
+  nonce String?
+  expiresAt DateTime
+  usedAt DateTime?
+  @@index([expiresAt])
+}
+
+// Persistent logout tombstones prevent a late login callback recreating a revoked session.
+model SsoLogoutEvent {
+  jti String @id
+  issuer String
+  subject String?
+  sid String?
+  issuedAt DateTime
+  expiresAt DateTime
+  @@index([issuer, sid])
+  @@index([issuer, subject])
+  @@index([expiresAt])
+}
+
+model SsoWebhookEvent {
+  eventId String @id
+  leaseUntil DateTime
+  processedAt DateTime?
+  @@index([processedAt])
 }

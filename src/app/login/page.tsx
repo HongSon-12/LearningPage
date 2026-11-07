@@ -1,6 +1,8 @@
+import {redirect} from "next/navigation";
+import {ssoEnabled} from "@/lib/auth-mode";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowLeft, GraduationCap } from "lucide-react";
+import { GraduationCap } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -10,7 +12,13 @@ import {
 } from "@/components/ui/card";
 import LoginForm from "./LoginForm";
 
-export default function LoginPage() {
+export default async function LoginPage({searchParams}:{searchParams:Promise<{error?:string}>}) {
+  if(ssoEnabled()) {
+    const {error} = await searchParams;
+    if(!error) redirect("/api/auth/login/authentik");
+    const message = error === "access-denied" ? "Tài khoản chưa được cấp quyền vào Quản lý đào tạo hoặc đang bị khóa. Vui lòng liên hệ admin edu." : "Chưa đăng nhập được qua SSO. Vui lòng thử lại hoặc liên hệ quản trị.";
+    return <main className="flex min-h-dvh items-center justify-center p-6"><section className="max-w-md space-y-5 rounded-xl border bg-card p-6 text-center"><h1 className="text-2xl font-semibold">Đăng nhập qua SSO 115</h1><p role="alert" className="text-muted-foreground">{message}</p><a className="inline-flex min-h-11 items-center rounded-lg bg-primary px-4 text-primary-foreground" href="/api/auth/login/authentik">Thử đăng nhập lại</a><Link className="block text-sm underline" href="/hocsocapcuu">Về trang đào tạo</Link></section></main>;
+  }
   return (
     <main className="auth-shell grid min-h-dvh bg-background lg:grid-cols-2">
       <section className="relative hidden flex-col justify-between overflow-hidden bg-blue-950 p-12 text-white lg:flex xl:p-16">
@@ -56,13 +64,6 @@ export default function LoginPage() {
       </section>
       <section className="flex items-center justify-center p-4 py-10 sm:p-8">
         <div className="w-full max-w-md">
-          <Link
-            href="/hocsocapcuu"
-            className="mb-6 inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-primary"
-          >
-            <ArrowLeft className="size-4" />
-            Về trang đào tạo
-          </Link>
           <Card className="gap-0 shadow-sm">
             <CardHeader className="space-y-3 p-6 pb-7 sm:p-8">
               <Image
@@ -83,6 +84,7 @@ export default function LoginPage() {
             </CardHeader>
             <CardContent className="px-6 pb-6 sm:px-8 sm:pb-8">
               <LoginForm />
+              <Link href="/forgot-password" className="mt-4 inline-flex min-h-11 items-center text-sm text-primary underline">Quên mật khẩu?</Link>
             </CardContent>
           </Card>
           <p className="mt-6 text-center text-xs leading-5 text-muted-foreground">
@@ -93,3 +95,5 @@ export default function LoginPage() {
     </main>
   );
 }
+
+export const dynamic = "force-dynamic";

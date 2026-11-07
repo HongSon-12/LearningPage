@@ -1,4 +1,6 @@
-import Link from "next/link";
+import { can } from "@/lib/permissions";
+import { assertPagePermission } from "@/lib/auth";
+import {PendingLink as Link} from "@/components/navigation/navigation-feedback";
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { pageUser, classScope } from "@/lib/auth";
@@ -17,6 +19,7 @@ export default async function StudentPage({
   params: Promise<{ studentId: string }>;
 }) {
   const actor = await pageUser();
+  assertPagePermission(actor, "students.view");
   const { studentId } = await params;
   const student = await prisma.student.findFirst({
     where: { id: studentId, ...studentScope(actor) },
@@ -126,7 +129,7 @@ export default async function StudentPage({
                   [
                     "CCCD",
                     student.cccd
-                      ? actor.role === "ACCOUNTANT"
+                      ? actor.role === "ACCOUNTANT" || !can(actor, "students.identity")
                         ? `********${student.cccd.slice(-4)}`
                         : student.cccd
                       : "Chưa có",
@@ -181,14 +184,14 @@ export default async function StudentPage({
                       })}
                     </p>
                   </div>
-                  <Button variant="action" size="icon" asChild>
+                  {can(actor, "registrations.view") && <Button variant="action" size="icon" asChild>
                     <Link
                       aria-label={`Mở lớp ${reg.class.code}`}
                       href={`/courses/${reg.class.id}`}
                     >
                       <ArrowUpRight />
                     </Link>
-                  </Button>
+                  </Button>}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <StatusBadge kind="registration" value={reg.status} />

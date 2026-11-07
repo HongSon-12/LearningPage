@@ -1,3 +1,4 @@
+import { assertPagePermission } from "@/lib/auth";
 import { Link2 } from "lucide-react";
 import { pageUser } from "@/lib/auth";
 import { programs } from "@/lib/programs";
@@ -15,7 +16,8 @@ const courseNames = {
 };
 
 export default async function CourseLinksPage() {
-  await pageUser();
+  const actor = await pageUser();
+  assertPagePermission(actor, "links.view");
   const programLinks = Object.entries(programs).map(([type, p]) => ({
     id: type,
     title: courseNames[type as keyof typeof courseNames],

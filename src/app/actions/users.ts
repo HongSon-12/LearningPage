@@ -1,4 +1,6 @@
 "use server";
+import {ssoEnabled} from "@/lib/auth-mode";
+import {persistSsoAccess} from "@/lib/sso-access";
 import { requireUser } from "@/lib/auth";
 import { errorMessage } from "@/lib/admissions";
 import { revalidatePath } from "next/cache";
@@ -9,9 +11,13 @@ export async function saveUser(form: FormData) {
   try {
     const actor = await requireUser(["ADMIN"]);
     await rateLimit("user-management", actor.id, 30, 60000);
-    const result = await persistUser(actor, {
+    const result = ssoEnabled() ? await persistSsoAccess(actor, {
+      id: String(form.get("id") || ""), role: String(form.get("role")), active: form.get("active") === "on", customRoleId: String(form.get("customRoleId") || ""),
+    }) : await persistUser(actor, {
       id: String(form.get("id") || ""),
       username: String(form.get("username") || ""),
+      email: String(form.get("email") || "").trim().toLowerCase(),
+      customRoleId: String(form.get("customRoleId") || ""),
       password: String(form.get("password") || ""),
       role: String(form.get("role")) as UserInput["role"],
       active: form.get("active") === "on",

@@ -1,7 +1,9 @@
 "use client";
+import { can } from "@/lib/permissions";
+import type { PermissionKey } from "@/lib/permission-catalog";
 import { SelectField, SelectOption } from "@/components/forms/select-field";
-import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import {PendingLink as Link} from "@/components/navigation/navigation-feedback";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DataColumn } from "@/components/data-table/table-features";
 import { toast } from "sonner";
 import { DataTable } from "@/components/data-table/data-table";
@@ -35,6 +37,9 @@ import {
   updateRegistrationCodes,
 } from "@/app/actions/adminRegistration";
 import RegistrationTools from "./RegistrationTools";
+import type { RegistrationPage } from "@/lib/registration-page";
+import { registrationFilter, type RegistrationFilter } from "@/lib/registration-filter";
+import { searchRegistrationPage, registrationHistory } from "@/app/actions/registration-list";
 import AdminDialog from "../components/AdminDialog";
 import {
   fieldClass,
@@ -68,6 +73,7 @@ type RegistrationData = {
   invoiceCode: string | null;
   certificateCode: string | null;
   class: {
+    certificateType?: string;
     courseType: string;
     courseBatch: string | null;
     code: string;
@@ -137,28 +143,58 @@ function Attachment({ label, url }: { label: string; url: string | null }) {
 }
 
 export default function RegistrationList({
-  initialData,
+  initialPage,
   courses,
   role,
+  permissions,
   mode,
   fixedClassId,
+  view = "students",
 }: {
-  initialData: RegistrationData[];
+  initialPage: RegistrationPage;
   courses: Course[];
   role: UserRole;
+  permissions: PermissionKey[];
   mode: "manage" | "review";
   fixedClassId?: string;
+  view?: "students" | "documents";
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [classId, setClassId] = useState("");
-  const [type, setType] = useState("");
-  const [batch, setBatch] = useState("");
-  const [state, setState] = useState(mode === "review" ? "PENDING" : "");
+  const [pageData,setPageData]=useState(initialPage);
+  const initialData=pageData.items;
+  const [pageIndex,setPageIndex]=useState(1);
+  const [sorting,setSorting]=useState({sort:"createdAt",desc:true});
+  const [loading,setLoading]=useState(false);
+  const [loadError,setLoadError]=useState("");
+  const completedRequest=useRef({data:initialPage,key:JSON.stringify({...registrationFilter,classId:fixedClassId || "",state:mode === "review" ? "PENDING" : ""})});
+  const [history,setHistory]=useState<{id:string;items:RegistrationData["events"];page:number;more:boolean;loading:boolean}>({id:"",items:[],page:1,more:false,loading:false});
+  const historyRequest=useRef(0);
+  async function loadHistory(id:string,page=1) {
+    const request=++historyRequest.current;
+    setHistory(previous=>({...previous,id,loading:true}));
+    const result=await registrationHistory(id,page).catch(()=>null);
+    if(request!==historyRequest.current)return;
+    if(result?.success)setHistory(previous=>({id,items:page===1?result.items:[...previous.items,...result.items],page,more:result.more,loading:false}));
+    else {setHistory(previous=>({...previous,loading:false}));toast.error(result?.error || "Không tải được lịch sử.");}
+  }
+  const [documentFilter,setDocumentFilterValue] = useState("");
+  const setDocumentFilter=(value:string)=>{if(value===documentFilter && pageIndex===1)return;setLoading(true);setPageIndex(1);setDocumentFilterValue(value);};
+  const [query,setQueryValue] = useState("");
+  const setQuery=(value:string)=>{if(value===query && pageIndex===1)return;setLoading(true);setPageIndex(1);setQueryValue(value);};
+  const [classId,setClassIdValue] = useState("");
+  const setClassId=(value:string)=>{if(value===classId && pageIndex===1)return;setLoading(true);setPageIndex(1);setClassIdValue(value);};
+  const [type,setTypeValue] = useState("");
+  const setType=(value:string)=>{if(value===type && pageIndex===1)return;setLoading(true);setPageIndex(1);setTypeValue(value);};
+  const [batch,setBatchValue] = useState("");
+  const setBatch=(value:string)=>{if(value===batch && pageIndex===1)return;setLoading(true);setPageIndex(1);setBatchValue(value);};
+  const [state,setStateValue] = useState(mode === "review" ? "PENDING" : "");
+  const setState=(value:string)=>{if(value===state && pageIndex===1)return;setLoading(true);setPageIndex(1);setStateValue(value);};
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = initialData.find((reg) => reg.id === selectedId);
+  const selectedRow = initialData.find((reg) => reg.id === selectedId);
+  const selected = selectedRow ? {...selectedRow,events:history.id === selectedId ? history.items : []} : undefined;
   const [tab, setTab] = useState("info");
   const [busy, setBusy] = useState<string | null>(null);
+  const mutationLock=useRef(false);
   const [notice, setNotice] = useState<{
     text: string;
     success: boolean;
@@ -171,33 +207,33 @@ export default function RegistrationList({
   const [confirmation, setConfirmation] = useState("");
   const [delivered, setDelivered] = useState(false);
   const [posted, setPosted] = useState(false);
-  const canManage = role !== "ACCOUNTANT";
-  const canPay = role === "ADMIN" || role === "ACCOUNTANT";
-  const scoped = useMemo(
-    () =>
-      initialData.filter(
-        (reg) =>
-          (!(fixedClassId || classId) ||
-            reg.classId === (fixedClassId || classId)) &&
-          (!type || reg.class.courseType === type) &&
-          (!batch || reg.class.courseBatch === batch) &&
-          [
-            reg.fullName,
-            reg.phone,
-            reg.cccd,
-            reg.id,
-            reg.invoiceCode,
-            reg.confirmationNumber,
-          ].some((value) =>
-            value?.toLowerCase().includes(query.trim().toLowerCase()),
-          ),
-      ),
-    [initialData, fixedClassId, classId, type, batch, query],
-  );
-  const visible = useMemo(
-    () => scoped.filter((reg) => !state || reg.status === state),
-    [scoped, state],
-  );
+  const actor = { id: "", username: "", role, permissions };
+  const canManage = role !== "ACCOUNTANT" && can(actor, "registrations.review");
+  const canTransfer = role !== "ACCOUNTANT" && can(actor, "registrations.transfer");
+  const canIdentity = role !== "ACCOUNTANT" && can(actor, "students.identity");
+  const canReceipt = can(actor, "receipts.view");
+  const canInvoice = (role === "ADMIN" || role === "ACCOUNTANT") && can(actor, "invoices.manage");
+  const canCertificate = role !== "ACCOUNTANT" && can(actor, "certificates.manage");
+  const canPay = (role === "ADMIN" || role === "ACCOUNTANT") && can(actor, "payments.manage");
+  useEffect(()=>{
+    const input:RegistrationFilter={query,classId:fixedClassId || classId,type,batch,state:state as RegistrationFilter["state"],document:(view==="documents"?documentFilter:"") as RegistrationFilter["document"],page:pageIndex,...sorting};
+    const key=JSON.stringify({...registrationFilter,...input});
+    if(completedRequest.current.data===initialPage && completedRequest.current.key===key){setLoading(false);return;}
+    const initialKey=JSON.stringify({...registrationFilter,classId:fixedClassId || "",state:mode === "review" ? "PENDING" : ""});
+    if(completedRequest.current.data!==initialPage && key===initialKey){completedRequest.current={data:initialPage,key};setPageData(initialPage);setLoading(false);return;}
+    let stale=false;
+    const timer=setTimeout(async()=>{
+      setLoading(true);setLoadError("");
+      try {
+        const result=await searchRegistrationPage(input);
+        if(stale)return;
+        if(result.success){completedRequest.current={data:initialPage,key};setPageData(result.data);}else setLoadError(result.error);
+      } catch {if(!stale)setLoadError("Không tải được danh sách. Vui lòng thử lại.");}
+      finally{if(!stale)setLoading(false);}
+    },200);
+    return ()=>{stale=true;clearTimeout(timer);};
+  },[query,classId,type,batch,state,documentFilter,fixedClassId,view,pageIndex,sorting,initialPage,mode]);
+  const visible=initialData;
   const [deleteTarget, setDeleteTarget] = useState<RegistrationData | null>(
     null,
   );
@@ -210,8 +246,10 @@ export default function RegistrationList({
       )
     : [];
   const open = useCallback((reg: RegistrationData) => {
+    ++historyRequest.current;
+    setHistory({id:reg.id,items:[],page:1,more:false,loading:false});
     setSelectedId(reg.id);
-    setTab("info");
+    setTab(view === "documents" ? "documents" : "info");
     setNotice(null);
     setReason(reg.rejectionReason || "");
     setTarget("");
@@ -221,7 +259,7 @@ export default function RegistrationList({
     setConfirmation(reg.confirmationNumber || "");
     setDelivered(reg.certificateDeliveredDirect);
     setPosted(reg.certificateSentByPost);
-  }, []);
+  }, [view]);
   const perform = useCallback(
     async (
       id: string,
@@ -229,6 +267,7 @@ export default function RegistrationList({
       message: string,
       close = false,
     ) => {
+      if(mutationLock.current)return;mutationLock.current=true;
       setBusy(id);
       setNotice(null);
       try {
@@ -251,12 +290,13 @@ export default function RegistrationList({
           success: false,
         });
       } finally {
-        setBusy(null);
+        mutationLock.current=false;setBusy(null);
       }
     },
     [router],
   );
   function reset() {
+    setDocumentFilter("");
     setQuery("");
     setClassId("");
     setType("");
@@ -289,11 +329,11 @@ export default function RegistrationList({
               <div>
                 <p className="font-semibold text-slate-900">{reg.fullName}</p>
                 <p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500">
-                  CCCD: {reg.cccd || "Chưa cập nhật"}
+                  {view === "documents" ? reg.phone : `CCCD: ${reg.cccd || "Chưa cập nhật"}`}
                 </p>
-                <p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-400">
+                {view !== "documents" && <p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-400">
                   Đăng ký {new Date(reg.createdAt).toLocaleDateString("vi-VN")}
-                </p>
+                </p>}
               </div>
             </div>
           );
@@ -308,7 +348,7 @@ export default function RegistrationList({
           <div>
             <p>{row.original.phone}</p>
             {row.original.email && (
-              <p className="mt-1 max-w-44 whitespace-normal break-all text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-muted-foreground">
+              <p className="mt-1 min-w-48 max-w-72 whitespace-normal break-words text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-muted-foreground">
                 {row.original.email}
               </p>
             )}
@@ -343,7 +383,7 @@ export default function RegistrationList({
           const reg = row.original;
           return canPay ? (
             <SelectField
-              className="min-w-40"
+              className="min-w-48"
               aria-label={`Thanh toán ${reg.fullName}`}
               disabled={busy !== null}
               value={reg.paymentStatus}
@@ -396,6 +436,11 @@ export default function RegistrationList({
           );
         },
       },
+      ...(view === "documents" ? [
+        {id:"invoice",header:"Hóa đơn",accessorFn:(reg:RegistrationData)=>reg.invoiceCode || "",meta:{label:"Hóa đơn"},cell:({row}:{row:{original:RegistrationData}})=><span className={row.original.invoiceCode?"font-medium":"text-muted-foreground"}>{row.original.invoiceCode || "Chưa có mã"}</span>},
+        {id:"certificate",header:"GCN / GXN",accessorFn:(reg:RegistrationData)=>(reg.class.certificateType === "CONFIRMATION" ? reg.confirmationNumber : reg.certificateCode) || "",meta:{label:"GCN / GXN"},cell:({row}:{row:{original:RegistrationData}})=><span className="font-medium">{(row.original.class.certificateType === "CONFIRMATION" ? row.original.confirmationNumber : row.original.certificateCode) || "Chưa có số"}</span>},
+        {id:"delivery",header:"Bàn giao",accessorFn:(reg:RegistrationData)=>reg.certificateDeliveredDirect || reg.certificateSentByPost,meta:{label:"Bàn giao"},cell:({row}:{row:{original:RegistrationData}})=><span className="text-sm">{row.original.certificateDeliveredDirect?"Trực tiếp":row.original.certificateSentByPost?"Bưu điện":"Chưa gửi"}</span>},
+      ] : []),
       {
         id: "actions",
         header: "Thao tác",
@@ -407,12 +452,13 @@ export default function RegistrationList({
               id={`student-detail-${row.original.id}`}
               variant="action"
               size="row"
+              disabled={loading || busy !== null}
               onClick={() => open(row.original)}
             >
               <Eye />
-              {mode === "review" ? "Kiểm tra" : "Chi tiết"}
+              {mode === "review" ? "Kiểm tra" : view === "documents" ? "Cập nhật" : "Chi tiết"}
             </Button>
-            {role === "ADMIN" && mode === "manage" && (
+            {role === "ADMIN" && mode === "manage" && view !== "documents" && (
               <Button
                 variant="danger-outline"
                 size="icon-row"
@@ -429,11 +475,11 @@ export default function RegistrationList({
         ),
       },
     ],
-    [busy, canPay, fixedClassId, mode, open, perform, role, setDeleteTarget],
+    [busy, loading, canPay, fixedClassId, mode, open, perform, role, setDeleteTarget, view],
   );
   const modalTabs = [
-    { id: "info", label: "Thông tin & hồ sơ", icon: FileText },
-    ...(mode === "manage" && canManage
+    { id: "info", label: "Hồ sơ", icon: FileText },
+    ...(mode === "manage" && canTransfer
       ? [{ id: "transfer", label: "Chuyển lớp", icon: ArrowRightLeft }]
       : []),
     ...(mode === "manage"
@@ -443,14 +489,16 @@ export default function RegistrationList({
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" aria-busy={busy!==null}>
+      {busy!==null&&<p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin"/>Đang cập nhật hồ sơ, vui lòng chờ…</p>}
       {mode === "manage" && (
         <RegistrationTools
           courses={courses.filter(
             (course) => !fixedClassId || course.id === fixedClassId,
           )}
-          role={role}
+          role={role} permissions={permissions}
           classId={fixedClassId || classId}
+          allowCreate={view !== "documents"}
         />
       )}
       {notice && !selected && (
@@ -461,19 +509,19 @@ export default function RegistrationList({
           {notice.text}
         </p>
       )}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-100 p-5">
+      {loadError && <p role="alert" className="text-sm text-destructive">{loadError}</p>}
+      {loading && <p role="status" className="text-sm text-muted-foreground">Đang tải danh sách…</p>}
+      <section aria-busy={loading} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-4">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="font-semibold text-slate-900">
-                {mode === "review"
-                  ? "Danh sách hồ sơ đăng ký"
-                  : "Danh sách học viên"}
+                {mode === "review" ? "Hồ sơ đăng ký" : view === "documents" ? "Thanh toán và chứng từ" : "Học viên"}
               </h2>
               <p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500">
                 {mode === "review"
                   ? "Chọn Kiểm tra để đối chiếu thông tin và tài liệu."
-                  : "Chọn Chi tiết để xem hồ sơ, chuyển lớp và cập nhật chứng từ."}
+                  : view === "documents" ? "Kế toán cập nhật học phí, hóa đơn; quản lý lớp ghi số GCN / GXN và bàn giao." : "Xem hồ sơ, duyệt đăng ký và chuyển lớp."}
               </p>
             </div>
             <button
@@ -485,7 +533,7 @@ export default function RegistrationList({
           </div>
           <div className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <label
-              className={`relative ${fixedClassId ? "sm:col-span-2 xl:col-span-4" : "sm:col-span-2 xl:col-span-4"}`}
+              className={`relative ${view === "documents" ? "sm:col-span-1 xl:col-span-3" : "sm:col-span-2 xl:col-span-4"}`}
             >
               <span className="sr-only">Tra cứu học viên</span>
               <Search
@@ -499,6 +547,7 @@ export default function RegistrationList({
                 className={`${fieldClass} pl-10`}
               />
             </label>
+            {view === "documents" && <label className="space-y-2"><span className="text-sm">Lọc chứng từ</span><SelectField value={documentFilter} onValueChange={setDocumentFilter}><SelectOption value="">Tất cả chứng từ</SelectOption><SelectOption value="unpaid">Chờ thanh toán</SelectOption><SelectOption value="invoice">Chưa có hóa đơn</SelectOption><SelectOption value="certificate">Chưa có GCN / GXN</SelectOption><SelectOption value="delivery">Chưa bàn giao</SelectOption></SelectField></label>}
             {!fixedClassId && (
               <>
                 <label className="space-y-1.5 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 font-medium text-slate-500">
@@ -572,12 +621,10 @@ export default function RegistrationList({
             )}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 border-b border-slate-100 px-5 py-3">
+        {view !== "documents" && <div className="flex flex-wrap gap-2 border-b border-slate-100 px-5 py-3">
           {statuses.map((item) => {
             const Icon = item.icon;
-            const count = scoped.filter(
-              (reg) => !item.value || reg.status === item.value,
-            ).length;
+            const count = pageData.summary[item.value] || 0;
             return (
               <button
                 key={item.value}
@@ -596,21 +643,26 @@ export default function RegistrationList({
               </button>
             );
           })}
-        </div>
+        </div>}
         <DataTable
-          columns={columns}
+          columns={columns.filter(column => {
+            const id="id" in column && column.id ? column.id : "accessorKey" in column ? String(column.accessorKey) : "";
+            return view === "documents" ? !["contact","status"].includes(id) : !(fixedClassId && id === "paymentStatus");
+          })}
+          server={{page:pageData.page,pages:pageData.pages,total:pageData.total,...sorting,pending:loading,onPage:setPageIndex,onSort:(sort,desc)=>{setPageIndex(1);setSorting({sort,desc});}}}
           data={visible}
           label="Hồ sơ"
           emptyTitle="Không có hồ sơ phù hợp"
           emptyDescription="Thử chọn trạng thái khác hoặc thay đổi bộ lọc."
         />
         <footer className="px-5 pb-3 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-muted-foreground">
-          {initialData.length} hồ sơ trong phạm vi quản lý.
+          {pageData.scopeTotal} hồ sơ trong phạm vi quản lý.
         </footer>
       </section>
 
       {selected && (
         <AdminDialog
+          busy={busy !== null}
           returnFocusId={`student-detail-${selected.id}`}
           title={selected.fullName}
           subtitle={`${selected.class.code} · ${selected.class.name}`}
@@ -636,7 +688,7 @@ export default function RegistrationList({
                   <button
                     key={item.id}
                     aria-pressed={tab === item.id}
-                    onClick={() => setTab(item.id)}
+                    onClick={() => {setTab(item.id);if(item.id === "history" && selected)void loadHistory(selected.id);}}
                     className={`inline-flex items-center gap-2 rounded-lg px-3 py-2.5 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 font-semibold transition ${tab === item.id ? "bg-white text-blue-700 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}
                   >
                     <Icon size={15} />
@@ -696,13 +748,13 @@ export default function RegistrationList({
                     Tài liệu đính kèm
                   </h3>
                   <div className="grid gap-4 sm:grid-cols-3">
-                    {canManage && (
+                    {canIdentity && (
                       <Attachment
                         label="Hồ sơ CCCD"
                         url={selected.idPhotoUrl}
                       />
                     )}
-                    {canManage && (
+                    {canIdentity && (
                       <Attachment
                         label={
                           selected.class.courseType === "AMBULANCE_DRIVER"
@@ -712,10 +764,10 @@ export default function RegistrationList({
                         url={selected.degreeUrl}
                       />
                     )}
-                    <Attachment
+                    {canReceipt && <Attachment
                       label="Biên lai thanh toán"
                       url={selected.paymentReceiptUrl}
-                    />
+                    />}
                   </div>
                 </section>
                 <section className="space-y-4 rounded-xl border border-slate-200 p-4">
@@ -809,7 +861,7 @@ export default function RegistrationList({
                 )}
               </div>
             )}
-            {tab === "transfer" && mode === "manage" && canManage && (
+            {tab === "transfer" && mode === "manage" && canTransfer && (
               <section className="space-y-5">
                 <div className="rounded-xl bg-blue-50 p-4 text-sm leading-6 text-blue-800">
                   Hồ sơ và trạng thái được giữ nguyên khi chuyển. Lớp đích cần
@@ -876,7 +928,7 @@ export default function RegistrationList({
                   <label className="space-y-2 text-sm font-medium text-slate-700">
                     Mã hóa đơn điện tử
                     <input
-                      disabled={!canPay}
+                      disabled={!canInvoice}
                       value={invoice}
                       onChange={(event) => setInvoice(event.target.value)}
                       className={fieldClass}
@@ -885,7 +937,7 @@ export default function RegistrationList({
                   <label className="space-y-2 text-sm font-medium text-slate-700">
                     Số GCN / Chứng chỉ
                     <input
-                      disabled={!canManage}
+                      disabled={!canCertificate}
                       value={certificate}
                       onChange={(event) => setCertificate(event.target.value)}
                       className={fieldClass}
@@ -894,7 +946,7 @@ export default function RegistrationList({
                   <label className="space-y-2 text-sm font-medium text-slate-700">
                     Số GXN
                     <input
-                      disabled={!canManage}
+                      disabled={!canCertificate}
                       value={confirmation}
                       onChange={(event) => setConfirmation(event.target.value)}
                       className={fieldClass}
@@ -907,7 +959,7 @@ export default function RegistrationList({
                   </legend>
                   <label className="flex items-center gap-3 text-sm text-slate-600">
                     <input
-                      disabled={!canManage}
+                      disabled={!canCertificate}
                       type="checkbox"
                       checked={delivered}
                       onChange={(event) => setDelivered(event.target.checked)}
@@ -917,7 +969,7 @@ export default function RegistrationList({
                   </label>
                   <label className="flex items-center gap-3 text-sm text-slate-600">
                     <input
-                      disabled={!canManage}
+                      disabled={!canCertificate}
                       type="checkbox"
                       checked={posted}
                       onChange={(event) => setPosted(event.target.checked)}
@@ -928,7 +980,7 @@ export default function RegistrationList({
                 </fieldset>
                 <div className="flex justify-end">
                   <button
-                    disabled={busy !== null}
+                    aria-busy={busy === selected.id} disabled={busy !== null || (!canInvoice && !canCertificate)}
                     onClick={() =>
                       void perform(
                         selected.id,
@@ -961,6 +1013,8 @@ export default function RegistrationList({
                 <h3 className="text-sm font-semibold text-slate-900">
                   Lịch sử thay đổi hồ sơ
                 </h3>
+                {history.loading && <p role="status">Đang tải lịch sử…</p>}
+                {history.more && <Button variant="outline" loading={history.loading} onClick={()=>void loadHistory(selected.id,history.page+1)}>Xem thêm lịch sử</Button>}
                 {selected.events.length === 0 ? (
                   <p className="rounded-xl bg-slate-50 p-5 text-sm text-slate-500">
                     Chưa có thay đổi được ghi nhận.

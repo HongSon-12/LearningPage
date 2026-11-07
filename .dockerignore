@@ -8,3 +8,18 @@ public/uploads
 harness
 test-results
 playwright-report
+
+outputs
+coverage
+*.tsbuildinfo
+
+# Deployment credentials and private backup artifacts
+backups
+secrets
+*.dump
+*.backup
+*.key
+*.pem
+*.p12
+*.pfx
+.pgpass

@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwindcss" source("../");
 @import "tw-animate-css";
 
 @theme {
@@ -161,4 +161,14 @@ body:has(.admin-shell) .ui-overlay {
 .admin-shell [data-slot="button"][data-variant="outline"]:hover:not(:disabled) {
   border-color: #93c5fd;
   background-color: #eff6ff;
+}
+
+/* Follow in-page links gently while preserving native wheel/touch scrolling. */
+html:has([data-slot="community-landing"]) {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html:has([data-slot="community-landing"]) {
+    scroll-behavior: auto;
+  }
 }

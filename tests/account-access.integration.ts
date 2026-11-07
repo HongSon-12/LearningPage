@@ -1,0 +1,66 @@
+import "dotenv/config";
+import assert from "node:assert/strict";
+import {randomUUID} from "node:crypto";
+import {readFile,readdir} from "node:fs/promises";
+import {Pool} from "pg";
+import {compare} from "bcryptjs";
+async function main(){
+ const schema="ttcc_accounts_"+randomUUID().replaceAll("-","");const pool=new Pool({connectionString:process.env.DATABASE_URL});let prisma:typeof import("../src/lib/prisma").default|undefined;
+ try{
+  await pool.query(`CREATE SCHEMA "${schema}"`);process.env.DATABASE_SCHEMA=schema;
+  const client=await pool.connect();try{await client.query(`SET search_path TO "${schema}"`);for(const dir of (await readdir("prisma/migrations",{withFileTypes:true})).filter(d=>d.isDirectory()).sort((a,b)=>a.name.localeCompare(b.name)))await client.query(await readFile(`prisma/migrations/${dir.name}/migration.sql`,"utf8"));}finally{client.release();}
+  prisma=(await import("../src/lib/prisma")).default;
+  const {persistUser}=await import("../src/lib/user-management");const {persistCustomRole}=await import("../src/lib/role-management");const {freshActor}=await import("../src/lib/rbac");const {can,classScope,landingPath}=await import("../src/lib/permissions");
+  const {requestPasswordReset,completePasswordReset}=await import("../src/lib/password-reset");const {runPasswordResetEmailBatch}=await import("../src/lib/password-reset-worker");const {hashSecret}=await import("../src/lib/security");
+  const admin=await prisma.user.create({data:{username:"admin",passwordHash:"unused",role:"ADMIN"}});
+  const role=await persistCustomRole(admin,{name:"Tiếp nhận lớp",baseRole:"CLASS_MANAGER",version:0,permissions:["classes.view","registrations.view"]});
+  await assert.rejects(()=>persistCustomRole(admin,{name:"Quản trị",baseRole:"CLASS_MANAGER",version:0,permissions:[]}));
+  await assert.rejects(()=>persistCustomRole(admin,{name:"Tiếp nhận lớp",baseRole:"CLASS_MANAGER",version:0,permissions:[]}));
+  await assert.rejects(()=>persistCustomRole(admin,{name:"Lạm quyền",baseRole:"ACCOUNTANT",version:0,permissions:["roles.manage"]}));
+  const input={id:"",username:"manager",password:"fixture-password-12",role:"CLASS_MANAGER" as const,active:true,email:"MANAGER@example.test",customRoleId:role.id};
+  const saved=await persistUser(admin,input);const user=await prisma.user.findUniqueOrThrow({where:{id:saved.id}});assert.equal(user.email,"manager@example.test");
+  await assert.rejects(()=>persistUser(admin,{...input,username:"duplicate",email:"manager@example.test"}));
+  await assert.rejects(()=>persistUser(admin,{...input,username:"bad-role",role:"ACCOUNTANT"}));
+  let actor=await freshActor(user);assert(can(actor,"dashboard.view"));assert(can(actor,"registrations.view"));assert(!can(actor,"classes.edit"));assert.deepEqual(classScope(actor),{managerId:user.id});assert.equal(landingPath(actor),"/");
+  await assert.rejects(()=>persistCustomRole(actor,{name:"Forged",baseRole:"CLASS_MANAGER",version:0,permissions:[]}));
+  await persistCustomRole(admin,{id:role.id,name:"Tiếp nhận",baseRole:"CLASS_MANAGER",version:role.version,permissions:[]});actor=await freshActor(user);assert(!can(actor,"classes.view"));assert(can(actor,"dashboard.view"));
+  await assert.rejects(()=>persistCustomRole(admin,{id:role.id,name:"Stale",baseRole:"CLASS_MANAGER",version:role.version,permissions:[]}));
+  await assert.rejects(()=>persistCustomRole(admin,{id:role.id,name:"Wrong base",baseRole:"ACCOUNTANT",version:2,permissions:[]}));
+  const unknown=await requestPasswordReset("unknown@example.test","unknown");const first=await requestPasswordReset("manager@example.test","valid");assert.equal(first.message,unknown.message);
+  let code="",deliveries=0;
+  const send=async(_to:string,_subject:string,html:string)=>{deliveries++;code=html.match(/<strong>([0-9]{6})<\/strong>/)?.[1]||code;};
+  await runPasswordResetEmailBatch(send,1,unknown.jobId);assert.equal(deliveries,0);
+  await runPasswordResetEmailBatch(send,1,first.jobId);assert.equal(deliveries,1);assert.match(code,/^[0-9]{6}$/);
+  assert.notEqual((await prisma.passwordResetChallenge.findUniqueOrThrow({where:{id:first.challengeId}})).codeHash,code);
+  const reset={challengeId:first.challengeId,code,password:"new-fixture-password",confirm:"new-fixture-password"};
+  await assert.rejects(()=>completePasswordReset({...reset,confirm:"does-not-match"},"complete"));
+  await assert.rejects(()=>completePasswordReset({...reset,code:code==="000000"?"111111":"000000"},"complete"));
+  assert.equal((await prisma.passwordResetChallenge.findUniqueOrThrow({where:{id:first.challengeId}})).failedAttempts,1);
+  await prisma.session.create({data:{userId:user.id,tokenHash:"fixture-session",expiresAt:new Date(Date.now()+3600000)}});
+  await prisma.loginAttempt.create({data:{key:hashSecret(user.username),failures:4}});
+  const race=await Promise.allSettled([1,2].map(()=>completePasswordReset(reset,"complete")));assert.equal(race.filter(row=>row.status==="fulfilled").length,1);
+  assert.equal(await prisma.session.count({where:{userId:user.id}}),0);assert.equal(await prisma.loginAttempt.count({where:{key:hashSecret(user.username)}}),0);
+  assert(await compare(reset.password,(await prisma.user.findUniqueOrThrow({where:{id:user.id}})).passwordHash));
+  await assert.rejects(()=>completePasswordReset(reset,"complete"));
+  await runPasswordResetEmailBatch(send);assert.equal(deliveries,2);
+  const retry=await requestPasswordReset("manager@example.test","retry");
+  await runPasswordResetEmailBatch(async()=>{throw Error("synthetic delivery failure")},1,retry.jobId);
+  assert.equal((await prisma.passwordResetChallenge.findUniqueOrThrow({where:{id:retry.challengeId}})).codeHash,null);
+  await prisma.emailOutbox.update({where:{id:retry.jobId},data:{nextAttemptAt:new Date(0)}});await runPasswordResetEmailBatch(send,1,retry.jobId);
+  await prisma.passwordResetChallenge.update({where:{id:retry.challengeId},data:{expiresAt:new Date(0)}});
+  await assert.rejects(()=>completePasswordReset({...reset,challengeId:retry.challengeId,code},"expired"));
+  const changed=await requestPasswordReset("manager@example.test","changed");await runPasswordResetEmailBatch(send,1,changed.jobId);
+  await persistUser(admin,{...input,id:user.id,password:"",email:"changed@example.test"});
+  await assert.rejects(()=>completePasswordReset({...reset,challengeId:changed.challengeId,code},"changed"));
+  const locked=await requestPasswordReset("changed@example.test","locked");await runPasswordResetEmailBatch(send,1,locked.jobId);
+  for(let i=0;i<5;i++)await assert.rejects(()=>completePasswordReset({...reset,challengeId:locked.challengeId,code:code==="000000"?"111111":"000000"},"attempts"));
+  await assert.rejects(()=>completePasswordReset({...reset,challengeId:locked.challengeId,code},"attempts"));
+  assert.equal((await prisma.passwordResetChallenge.findUniqueOrThrow({where:{id:locked.challengeId}})).failedAttempts,5);
+  const old=await requestPasswordReset("changed@example.test","resend");const next=await requestPasswordReset("changed@example.test","resend");
+  assert((await prisma.passwordResetChallenge.findUniqueOrThrow({where:{id:old.challengeId}})).usedAt);
+  await prisma.user.update({where:{id:user.id},data:{active:false}});const before=deliveries;await runPasswordResetEmailBatch(send,1,next.jobId);assert.equal(deliveries,before);
+  await assert.rejects(()=>freshActor(user));
+  console.log("PASS account access: additive migrations, unique email, custom role creation/assignment/scope/revocation/version checks, universal dashboard, generic recovery, hashed expiring single-use OTP, failed attempt lock, SMTP retry, password/session/login-lock reset, concurrent replay denial, changed email and disabled account invalidation");
+ }finally{await prisma?.$disconnect();assert.match(schema,/^ttcc_accounts_[a-f0-9]{32}$/);await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);await pool.end();}
+}
+main().catch(error=>{console.error(error);process.exitCode=1;});

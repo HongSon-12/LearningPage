@@ -1,5 +1,6 @@
+import {RequestError} from "@/lib/errors";
 import { canonicalCccd } from "@/lib/student-identity";
-import { studentForRegistration } from "@/lib/students";
+import { studentForRegistration, lockStudentIdentities } from "@/lib/students";
 import { bindRegistrationFiles, fileIdFromUrl } from "@/lib/stored-files";
 import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
@@ -15,12 +16,9 @@ export const publicRegistrationSelect = {
 } satisfies Prisma.RegistrationSelect;
 export const fullMessage =
   "Số lượng học viên đã đủ. Vui lòng kiểm tra lại hoặc chọn lớp khác.";
-export function errorMessage(error: unknown) {
-  if (error instanceof Error && !error.name.startsWith("Prisma"))
-    return error.message;
-  return "Lỗi cần kiểm tra lại. Vui lòng thử lại.";
-}
-// All writers that change seats share this lock, including transfers, imports and reactivation.
+export {publicError as errorMessage} from "./errors";
+// Administrative multi-record operations retain their existing serialization.
+// Seat correctness also uses per-class locks, shared with the independent public reservation path.
 // READ COMMITTED sees the winner's commit after waiting for the transaction-scoped lock.
 export function rosterTransaction<T>(
   work: (tx: Prisma.TransactionClient) => Promise<T>,
@@ -33,21 +31,29 @@ export function rosterTransaction<T>(
     { isolationLevel: "ReadCommitted", timeout: 15000, maxWait: 15000 },
   );
 }
+// A class lock is shared by every seat/capacity writer. Sort multi-class locks to avoid transfer deadlocks.
+export async function lockClasses(tx: Prisma.TransactionClient, classIds: string[]) {
+  for (const id of [...new Set(classIds)].sort()) {
+    const key = `ttcc:${process.env.DATABASE_SCHEMA || "public"}:class:${id}`;
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${key}))`;
+  }
+}
 export async function availableClass(
   tx: Prisma.TransactionClient,
   classId: string,
   excludeId?: string,
   late = false,
 ) {
+  await lockClasses(tx, [classId]);
   const course = await tx.class.findUnique({ where: { id: classId } });
   if (!course || course.status !== "OPEN")
-    throw new Error("Lớp không mở đăng ký.");
+    throw new RequestError("Lớp không mở đăng ký.");
   if (
     !late &&
     course.registrationDeadline &&
     course.registrationDeadline < new Date()
   )
-    throw new Error("Đã hết hạn đăng ký.");
+    throw new RequestError("Đã hết hạn đăng ký.");
   const count = await tx.registration.count({
     where: {
       classId,
@@ -55,7 +61,7 @@ export async function availableClass(
       ...(excludeId ? { id: { not: excludeId } } : {}),
     },
   });
-  if (count >= course.capacity) throw new Error(fullMessage);
+  if (count >= course.capacity) throw new RequestError(fullMessage);
   return course;
 }
 export type RegistrationInput = {
@@ -94,20 +100,20 @@ export function registrationData(data: RegistrationInput) {
       (typeof value !== "string" ||
         value.length > (key === "note" ? 2000 : 250))
     )
-      throw new Error("Thông tin nhập quá dài.");
+      throw new RequestError("Thông tin nhập quá dài.");
   }
   if (
     !data.fullName?.trim() ||
     !/^\+?[0-9 .()-]{8,20}$/.test(data.phone?.trim() || "")
   )
-    throw new Error("Kiểm tra lại họ tên và số điện thoại.");
+    throw new RequestError("Kiểm tra lại họ tên và số điện thoại.");
   const dob = new Date(data.dob);
   if (isNaN(dob.getTime()) || dob > new Date() || dob.getFullYear() < 1900)
-    throw new Error("Ngày sinh không hợp lệ.");
+    throw new RequestError("Ngày sinh không hợp lệ.");
   if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))
-    throw new Error("Email không hợp lệ.");
+    throw new RequestError("Email không hợp lệ.");
   if (data.gender && !["MALE", "FEMALE", "OTHER"].includes(data.gender))
-    throw new Error("Giới tính không hợp lệ.");
+    throw new RequestError("Giới tính không hợp lệ.");
   for (const url of [data.idPhotoUrl, data.degreeUrl, data.paymentReceiptUrl]) {
     if (url) fileIdFromUrl(url);
   }
@@ -134,12 +140,12 @@ export function validateProgram(
   data: ReturnType<typeof registrationData>,
   courseType: string,
 ) {
-  if (!data.cccd) throw new Error("Vui lòng cung cấp số CCCD.");
+  if (!data.cccd) throw new RequestError("Vui lòng cung cấp số CCCD.");
   if (
     courseType !== "COMMUNITY_FIRST_AID" &&
     (!data.workplace || !data.idPhotoUrl || !data.degreeUrl)
   ) {
-    throw new Error(
+    throw new RequestError(
       "Chương trình này yêu cầu đơn vị công tác, ảnh CCCD và bằng chuyên môn/bằng lái xe.",
     );
   }
@@ -149,7 +155,9 @@ export async function preventDuplicate(
   data: ReturnType<typeof registrationData>,
   excludeId?: string,
 ) {
+  await lockClasses(tx, [data.classId]);
   const cccd = canonicalCccd(data.cccd);
+  await lockStudentIdentities(tx,[cccd]);
   const student = cccd
     ? await tx.student.findUnique({ where: { cccd }, select: { id: true } })
     : null;
@@ -167,7 +175,7 @@ export async function preventDuplicate(
       },
     }))
   )
-    throw new Error("Học viên đã có hồ sơ trong lớp này.");
+    throw new RequestError("Học viên đã có hồ sơ trong lớp này.");
 }
 export async function addRegistration(
   tx: Prisma.TransactionClient,
@@ -216,20 +224,27 @@ export async function reserveOnline(
   input: RegistrationInput & { requestKey: string; receiptToken: string },
 ) {
   if (
+    !input || typeof input !== "object" || typeof input.classId !== "string" || !/^[a-f0-9-]{36}$/.test(input.classId) ||
+    typeof input.requestKey !== "string" || typeof input.receiptToken !== "string" ||
     !/^[a-f0-9-]{36}$/.test(input.requestKey) ||
     !/^[a-f0-9-]{72}$/.test(input.receiptToken)
   )
-    throw new Error("Phiên đăng ký không hợp lệ.");
+    throw new RequestError("Phiên đăng ký không hợp lệ.");
   const receiptTokenHash = createHash("sha256")
     .update(input.receiptToken)
     .digest("hex");
-  return rosterTransaction(async (tx) => {
+  // Retried requests serialize independently of the selected class, including a changed classId.
+  // Do not take the administrative global lock: unrelated classes can reserve seats concurrently.
+  return prisma.$transaction(async (tx) => {
+    const key = `ttcc:${process.env.DATABASE_SCHEMA || "public"}:request:${input.requestKey}`;
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${key}))`;
+    await lockClasses(tx, [input.classId]);
     const existing = await tx.registration.findUnique({
       where: { requestKey: input.requestKey },
     });
     if (existing) {
-      if (existing.receiptTokenHash !== receiptTokenHash)
-        throw new Error("Phiên đăng ký không hợp lệ.");
+      if (existing.receiptTokenHash !== receiptTokenHash || existing.classId !== input.classId)
+        throw new RequestError("Phiên đăng ký không hợp lệ.");
       return { registration: existing, created: false };
     }
     const registration = await addRegistration(tx, input, {
@@ -237,5 +252,5 @@ export async function reserveOnline(
       receiptTokenHash,
     });
     return { registration, created: true };
-  });
+  }, { isolationLevel: "ReadCommitted", timeout: 15000, maxWait: 15000 });
 }

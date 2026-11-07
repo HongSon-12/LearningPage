@@ -1,0 +1,11 @@
+# Personal account and Nginx startup fix
+
+
+## Phase02p — Menu/tài khoản cá nhân và sửa Docker Nginx (18/10/2026)
+- Menu cuối sidebar theo mẫu, chỉ Tài khoản/Đăng xuất; tên/email và avatar viết tắt. Mobile có menu nhanh góc trên và menu trong sidebar. Giữ tiêu đề chính và điều hướng. Tài khoản quản trị hệ thống ở/users giữ nguyên chức năng cũ.
+- /account cho mọi tài khoản đăng nhập, kể cả customrole không có quyền nghiệp vụ. Chỉ nạp username/email của chính user; vai trò hiển thị đọc. Tự đổi email hoặc mật khẩu, cần xác nhận mật khẩu hiện tại; email chuẩn hóa/duy nhất, xác nhận mật khẩu và giới hạn10ký tự/72byte. Lưu thay đổi thu hồi toàn bộ phiên của chính user và các mã reset, yêu cầu đăng nhập lại. No-op giữ phiên. Không nhận id/username/role/active trong payload; binding sessionhash↔actorid và kiểm tra lại phiên/active/version trong transaction ngăn stale/race/cross-user. Rate10/15phút và audit không lưu email/mật khẩu.
+- Dockerfile.nginx COPY nginx.conf vào image; Compose build dịch vụ nginx, bỏ file bindmount ./nginx.conf gây lỗi OCI trên Windows/WSL. Không đổi cấu hình proxy/rate/origin hay các volume dữ liệu. Đã build riêng learning-nginx và chạy container --rm --network none --add-host app:127.0.0.1 nginx -t: entrypoint và syntax PASS, không có mounterror. dockercomposeconfig--quiet PASS. Không khởi động lại hoặc triển khai cả stack; khi chạy lại dùng docker compose up -d --build.
+
+### Validation
+Build+TypeScript/private-artifact gate và targeted ESLint PASS. tests/self-account.integration.ts dùng schema cô lập PASS: ownership/session/currentpassword, allowlist, emailunique/normalize, no-op, unchangedrole/status/name, passwordrules, sessions/resetcodes revocation, race/stale/disabled denial. Hai browserflowsPASS (desktopcase trong lượt2case9.1s, mobilecase final6.0s): role không quyền quản lý tự sửaemail, menu2mục/logout; mobileđổipassword/chốtxácnhận, phiênkhácbịthu hồi, passwordcũsai/newđúng. Đã sửa locators test cho nhãn đăngnhập códấubắtbuộc và tránh route-announcer khi tìm alert; không có thay đổiapp do các lỗi locator. Review ảnh menu desktop/mobile và accountform390px. Chỉ chạy các ca liên quan.
+Bảo toàn8đăngký/8studentprofiles/4privatefilehash;7hồsơcầnđốichiếu,0unlinked/orphan/fixture. Không có migration hay sửa dữ liệu thật.

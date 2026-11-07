@@ -1,7 +1,13 @@
 "use server";
+import {RequestError} from "@/lib/errors";
+
+import { invalidatePublicClasses } from "@/lib/public-classes";
+import { assignManagerInTransaction } from "@/lib/user-management";
+import { transactionPermission } from "@/lib/rbac";
+import { assertPermission } from "@/lib/permissions";
 
 import { requireUser, classScope, assertClassAccess } from "@/lib/auth";
-import { occupiedWhere, rosterTransaction, errorMessage } from "@/lib/admissions";
+import { occupiedWhere, rosterTransaction, errorMessage, lockClasses } from "@/lib/admissions";
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import type { CertificateType, ClassStatus, CourseType, TargetAudience } from "@prisma/client";
@@ -9,12 +15,15 @@ import type { CertificateType, ClassStatus, CourseType, TargetAudience } from "@
 export async function getClasses() {
   try {
     const actor = await requireUser();
+    assertPermission(actor, "classes.view");
     const classes = await prisma.class.findMany({
       where: classScope(actor),
       orderBy: { startDate: "asc" },
       include: {
+        manager: { select: { id: true, username: true } },
         _count: {
           select: {
+            sessions: true,
             registrations: {
               where: {
                 ...occupiedWhere
@@ -33,7 +42,7 @@ export async function getClasses() {
 
 export async function createClass(formData: FormData) {
   try {
-    await requireUser(["ADMIN"]);
+    const actor = await requireUser(["ADMIN"]);
     const code = formData.get("code") as string;
     const name = formData.get("name") as string;
     const courseType = formData.get("courseType") as CourseType || "COMMUNITY_FIRST_AID";
@@ -51,9 +60,11 @@ export async function createClass(formData: FormData) {
     const startTime = formData.get("startTime") as string;
     const endTime = formData.get("endTime") as string;
     const capacity = Number(formData.get("capacity"));
-    if (!Number.isInteger(capacity) || capacity < 1 || !Number.isFinite(fee) || fee < 0) throw new Error("Sĩ số/học phí không hợp lệ.");
+    if (!Number.isInteger(capacity) || capacity < 1 || !Number.isFinite(fee) || fee < 0) throw new RequestError("Sĩ số/học phí không hợp lệ.");
 
-    await prisma.class.create({
+    await rosterTransaction(async tx => {
+    const current = await transactionPermission(tx, actor, "classes.create");
+    const course = await tx.class.create({
       data: {
         code,
         name,
@@ -73,6 +84,9 @@ export async function createClass(formData: FormData) {
       },
     });
 
+    if (formData.has("managerId")) await assignManagerInTransaction(tx, current, course.id, String(formData.get("managerId") || ""));
+    });
+    invalidatePublicClasses();
     revalidatePath("/courses", "layout"); revalidatePath("/hocsocapcuu/courses");
     return { success: true };
   } catch (error) {
@@ -88,6 +102,7 @@ export async function deleteClass(id: string) {
     await prisma.class.delete({
       where: { id },
     });
+    invalidatePublicClasses();
     revalidatePath("/courses", "layout"); revalidatePath("/hocsocapcuu/courses");
     return { success: true };
   } catch (error) {
@@ -99,6 +114,8 @@ export async function deleteClass(id: string) {
 export async function updateClass(id: string, formData: FormData) {
   try {
     const actor = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    assertPermission(actor, "classes.edit");
+    if (formData.has("managerId") && actor.role !== "ADMIN") throw new RequestError("Chỉ Quản trị được đổi người phụ trách.");
     const existing = await prisma.class.findUniqueOrThrow({where: {id}});
     assertClassAccess(actor, existing);
     const code = formData.get("code") as string;
@@ -118,13 +135,18 @@ export async function updateClass(id: string, formData: FormData) {
     const startTime = formData.get("startTime") as string;
     const endTime = formData.get("endTime") as string;
     const capacity = Number(formData.get("capacity"));
-    if (!Number.isInteger(capacity) || capacity < 1 || !Number.isFinite(fee) || fee < 0) throw new Error("Sĩ số/học phí không hợp lệ.");
+    if (!Number.isInteger(capacity) || capacity < 1 || !Number.isFinite(fee) || fee < 0) throw new RequestError("Sĩ số/học phí không hợp lệ.");
     const status = formData.get("status") as ClassStatus || "OPEN";
 
     await rosterTransaction(async tx => {
+    await lockClasses(tx, [id]);
+    const current = await transactionPermission(tx, actor, "classes.edit");
+    const currentClass = await tx.class.findUniqueOrThrow({where: {id}});
+    assertClassAccess(current, currentClass);
+    if (formData.has("managerId")) await assignManagerInTransaction(tx, current, id, String(formData.get("managerId") || ""));
     const count = await tx.registration.count({where: {classId: id, ...occupiedWhere}});
-    if (count > 0 && courseType !== existing.courseType) throw new Error("Không đổi chương trình khi lớp đã có học viên.");
-    if (capacity < count) throw new Error("Sức chứa không thể nhỏ hơn số học viên đang ghi nhận.");
+    if (count > 0 && courseType !== currentClass.courseType) throw new RequestError("Không đổi chương trình khi lớp đã có học viên.");
+    if (capacity < count) throw new RequestError("Sức chứa không thể nhỏ hơn số học viên đang ghi nhận.");
     await tx.class.update({
       where: { id },
       data: {
@@ -148,7 +170,9 @@ export async function updateClass(id: string, formData: FormData) {
     });
 
     });
+    invalidatePublicClasses();
     revalidatePath("/courses", "layout"); revalidatePath("/hocsocapcuu/courses");
+    invalidatePublicClasses();
     revalidatePath("/courses", "layout"); revalidatePath("/hocsocapcuu/courses");
     return { success: true };
   } catch (error) {

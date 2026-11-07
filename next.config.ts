@@ -2,12 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  poweredByHeader: false,
   outputFileTracingExcludes: {
     "/*": [
       "./.local/**/*",
       "./.env*",
       "./.git/**/*",
-      "./.next/**/*",
+      "./.next/dev/**/*",
       "./public/uploads/**/*",
     ],
   },
@@ -25,12 +26,16 @@ const nextConfig: NextConfig = {
             value: "camera=(), microphone=(), geolocation=()",
           },
           {
-            key: "Content-Security-Policy-Report-Only",
+            key: "Content-Security-Policy",
             value:
-              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://img.vietqr.io; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+              `default-src 'self'; script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://img.vietqr.io; font-src 'self'; connect-src 'self'${process.env.NODE_ENV === 'development' ? ' ws: wss:' : ''}; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'`,
           },
         ],
       },
+      ...["/api/files/:fileId", "/api/attendance/:sessionId/identity/:registrationId"].map(source=>({
+        source,
+        headers:[{key:"Content-Security-Policy",value:"sandbox; default-src 'none'; frame-ancestors 'none'"}],
+      })),
       {
         source: "/courses/:classId/sessions/:sessionId",
         headers: [

@@ -1,3 +1,5 @@
+import { can } from "@/lib/permissions";
+import { assertPagePermission } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { pageUser, classScope } from "@/lib/auth";
 import { queryStudentDirectory } from "@/lib/student-directory";
@@ -8,6 +10,7 @@ import StudentDirectory from "./StudentDirectory";
 export const dynamic = "force-dynamic";
 export default async function StudentsPage() {
   const actor = await pageUser();
+  assertPagePermission(actor, "students.view");
   const [data, courses] = await Promise.all([
     queryStudentDirectory(actor, defaultStudentFilter),
     prisma.class.findMany({
@@ -26,7 +29,7 @@ export default async function StudentsPage() {
       <StudentDirectory
         initialData={data}
         courses={courses}
-        canSearchCccd={actor.role !== "ACCOUNTANT"}
+        canSearchCccd={actor.role !== "ACCOUNTANT" && can(actor, "students.identity")}
       />
     </div>
   );

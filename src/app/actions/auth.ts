@@ -1,4 +1,8 @@
 "use server";
+import {ssoEnabled} from "@/lib/auth-mode";
+import {beginSsoLogout} from "@/lib/sso-browser";
+import {ssoConfig} from "@/lib/sso-config";
+import {publicError} from "@/lib/errors";
 import { headers } from "next/headers";
 import {
   rateLimit,
@@ -13,6 +17,7 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { digest, sessionCookie } from "@/lib/auth";
 export async function login(form: FormData) {
+  if (ssoEnabled()) return {success:false,error:"Hãy đăng nhập qua hệ thống SSO 115."};
   try {
     await rateLimit(
       "login",
@@ -81,8 +86,17 @@ export async function login(form: FormData) {
 export async function logout() {
   const jar = await cookies();
   const token = jar.get(sessionCookie)?.value;
-  if (token)
-    await prisma.session.deleteMany({ where: { tokenHash: digest(token) } });
+  if(ssoEnabled()) {
+    let destination: string;
+    try {
+      if((await headers()).get("origin") !== ssoConfig().origin) throw Error("ORIGIN_INVALID");
+      destination = (await beginSsoLogout(token ? digest(token) : "")).toString();
+    } catch { return {success:false as const,error:"Chưa kết nối được SSO để đăng xuất toàn bộ. Vui lòng thử lại."}; }
+    redirect(destination);
+  }
+  try{
+    if(token)await prisma.session.deleteMany({where:{tokenHash:digest(token)}});
+  }catch(error){return {success:false as const,error:publicError(error,"Chưa đăng xuất được. Vui lòng thử lại.")};}
   jar.delete(sessionCookie);
   redirect("/login");
 }

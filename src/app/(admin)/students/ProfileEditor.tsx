@@ -102,8 +102,8 @@ export default function ProfileEditor({
           {message}
         </p>
       )}
-      <Button disabled={busy} type="submit">
-        {busy ? "Đang lưu…" : "Lưu hồ sơ đã đối chiếu"}
+      <Button loading={busy} type="submit">
+        {busy ? "Đang lưu…" : "Lưu hồ sơ"}
       </Button>
     </form>
   );

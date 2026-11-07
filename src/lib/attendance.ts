@@ -2,27 +2,34 @@ import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { occupiedWhere, rosterTransaction } from "@/lib/admissions";
 import type { Actor } from "@/lib/permissions";
+import { assertPermission } from "@/lib/permissions";
+import { rolePermissions } from "./rbac";
+import type { PermissionKey } from "./permission-catalog";
 import { RequestError } from "@/lib/security";
 import { sessionInput, type SessionInput } from "@/lib/session-input";
 
 export async function attendanceActor(
   tx: Prisma.TransactionClient,
   actor: Actor,
+  permission: PermissionKey = "attendance.manage",
 ) {
   const user = await tx.user.findUnique({
     where: { id: actor.id },
-    select: { id: true, username: true, role: true, active: true },
+    select: { id: true, username: true, role: true, active: true, customRoleId:true },
   });
   if (!user?.active || !["ADMIN", "CLASS_MANAGER"].includes(user.role))
     throw new RequestError("Không có quyền điểm danh.", 403);
-  return user;
+  const current = { ...user, permissions: await rolePermissions(user.role, tx, user.customRoleId) };
+  assertPermission(current, permission);
+  return current;
 }
 export async function attendanceClass(
   tx: Prisma.TransactionClient,
   actor: Actor,
   classId: string,
+  permission: PermissionKey = "attendance.manage",
 ) {
-  const user = await attendanceActor(tx, actor);
+  const user = await attendanceActor(tx, actor, permission);
   const course = await tx.class.findFirst({
     where: {
       id: classId,
@@ -37,12 +44,13 @@ export async function attendanceSession(
   tx: Prisma.TransactionClient,
   actor: Actor,
   sessionId: string,
+  permission: PermissionKey = "attendance.manage",
 ) {
   const session = await tx.classSession.findUnique({
     where: { id: sessionId },
   });
   if (!session) throw new RequestError("Không tìm thấy buổi học.", 404);
-  await attendanceClass(tx, actor, session.classId);
+  await attendanceClass(tx, actor, session.classId, permission);
   return session;
 }
 export async function saveClassSession(
@@ -55,9 +63,9 @@ export async function saveClassSession(
   if (!result.success) throw new RequestError(result.error.issues[0].message);
   const { title, location, startsAt, endsAt } = result.data;
   return rosterTransaction(async (tx) => {
-    await attendanceClass(tx, actor, classId);
+    await attendanceClass(tx, actor, classId, "sessions.manage");
     if (id) {
-      const existing = await attendanceSession(tx, actor, id);
+      const existing = await attendanceSession(tx, actor, id, "sessions.manage");
       if (existing.classId !== classId)
         throw new RequestError("Buổi học không thuộc lớp.", 404);
     }
@@ -91,7 +99,7 @@ export async function setSessionClosed(
   if (typeof closed !== "boolean")
     throw new RequestError("Trạng thái không hợp lệ.");
   return rosterTransaction(async (tx) => {
-    const session = await attendanceSession(tx, actor, sessionId);
+    const session = await attendanceSession(tx, actor, sessionId, "sessions.manage");
     if (session.closed !== closed) {
       await tx.classSession.update({
         where: { id: sessionId },

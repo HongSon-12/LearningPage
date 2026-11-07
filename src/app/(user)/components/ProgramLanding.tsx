@@ -1,4 +1,4 @@
-import Link from "next/link";
+import {PendingLink as Link} from "@/components/navigation/navigation-feedback";
 import { programs, type ProgramType } from "@/lib/programs";
 import RelatedCourses from "./RelatedCourses";
 type ClassInfo={id:string;name:string;code:string;location:string;startDate:Date;endDate:Date;fee:number;capacity:number;status:string;registrationDeadline:Date|null;_count:{registrations:number}};

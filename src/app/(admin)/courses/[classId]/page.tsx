@@ -1,121 +1,29 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import ClassSessions from "./ClassSessions";
 import dynamicImport from "next/dynamic";
-import TableLoading from "@/components/admin/table-loading";
-import { StatusBadge } from "@/components/admin/status-badge";
-import {
-  Users,
-  CalendarDays,
-  MapPin,
-  CheckCircle,
-  Clock,
-  CreditCard,
-} from "lucide-react";
-import { PageHeader, StatCard } from "../../components/AdminUI";
-import { notFound } from "next/navigation";
+import { classWorkspace } from "@/lib/class-workspace";
+import { can } from "@/lib/permissions";
+import { assertPagePermission, pageUser, classScope } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { pageUser, classScope } from "@/lib/auth";
-import { occupiedWhere } from "@/lib/admissions";
-import { getRegistrations } from "@/app/actions/adminRegistration";
-const RegistrationList = dynamicImport(
-  () => import("../../registrations/RegistrationList"),
-  { loading: () => <TableLoading /> },
-);
+import { queryRegistrationPage } from "@/lib/registration-page";
+import { registrationFilter } from "@/lib/registration-filter";
+import RegistrationList from "../../registrations/RegistrationList";
+const ClassDetails = dynamicImport(() => import("./ClassDetails"));
 export const dynamic = "force-dynamic";
-export default async function ClassStudentsPage({
-  params,
-}: {
-  params: Promise<{ classId: string }>;
-}) {
-  const actor = await pageUser();
-  const { classId } = await params;
-  const course = await prisma.class.findFirst({
-    where: { id: classId, ...classScope(actor) },
-    include: {
-      _count: { select: { registrations: { where: occupiedWhere } } },
-    },
-  });
-  if (!course) notFound();
-  const [result, courses] = await Promise.all([
-    getRegistrations(classId),
-    prisma.class.findMany({
-      where: { ...classScope(actor), courseType: course.courseType },
-      orderBy: { startDate: "desc" },
-    }),
-  ]);
-  if (!result.success || !result.data)
-    return <p className="text-red-600">{result.error}</p>;
-  const active = result.data.filter(
-    (reg) => reg.status !== "REJECTED" && reg.paymentStatus !== "CANCELLED",
-  );
-  return (
-    <div className="w-full min-w-0 space-y-4">
-      <PageHeader
-        title={`Học viên lớp ${course.code}`}
-        description={course.name}
-        icon={Users}
-        parent={{ href: "/courses", label: "Danh sách lớp học" }}
-      />
-      <section className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-600">
-        <span className="inline-flex items-center gap-2">
-          <CalendarDays size={16} className="text-slate-400" />
-          {new Date(course.startDate).toLocaleDateString("vi-VN")} –{" "}
-          {new Date(course.endDate).toLocaleDateString("vi-VN")}
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <MapPin size={16} className="text-slate-400" />
-          {course.location}
-        </span>
-        {course.courseBatch && (
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 font-medium">
-            Khóa {course.courseBatch}
-          </span>
-        )}
-        <span className="ml-auto">
-          <StatusBadge kind="class" value={course.status} />
-        </span>
-      </section>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Sĩ số hiện tại"
-          value={`${course._count.registrations}/${course.capacity}`}
-          icon={Users}
-          hint={`${Math.max(0, course.capacity - course._count.registrations)} chỗ còn lại`}
-        />
-        <StatCard
-          label="Hồ sơ chờ duyệt"
-          value={result.data.filter((reg) => reg.status === "PENDING").length}
-          icon={Clock}
-          tone="amber"
-        />
-        <StatCard
-          label="Hồ sơ đã duyệt"
-          value={result.data.filter((reg) => reg.status === "APPROVED").length}
-          icon={CheckCircle}
-          tone="green"
-        />
-        <StatCard
-          label="Chờ thanh toán"
-          value={active.filter((reg) => reg.paymentStatus === "PENDING").length}
-          icon={CreditCard}
-          tone="amber"
-        />
-      </div>
-      {actor.role !== "ACCOUNTANT" && (
-        <Button asChild>
-          <Link href={`/courses/${classId}/sessions`}>
-            <CalendarDays />
-            Buổi học và điểm danh
-          </Link>
-        </Button>
-      )}
-      <RegistrationList
-        initialData={result.data}
-        courses={courses}
-        role={actor.role}
-        mode="manage"
-        fixedClassId={classId}
-      />
-    </div>
-  );
+export default async function ClassStudentsPage({params,searchParams}:{params:Promise<{classId:string}>;searchParams:Promise<{tab?:string}>}) {
+  const actor=await pageUser();
+  const [{classId},query]=await Promise.all([params,searchParams]);
+  if(query.tab === "sessions")return <ClassSessions classId={classId}/>;
+  assertPagePermission(actor,"registrations.view");
+  const tab=query.tab === "info" ? "info" : query.tab === "documents" ? "documents" : "students";
+  const course=await classWorkspace(classId);
+  if(tab !== "info") {
+    const [result,courses]=await Promise.all([
+      queryRegistrationPage(actor,{...registrationFilter,classId}),
+      can(actor,"registrations.transfer") && actor.role !== "ACCOUNTANT" ? prisma.class.findMany({where:{...classScope(actor),courseType:course.courseType},select:{id:true,code:true,name:true,courseType:true,courseBatch:true,status:true},orderBy:{startDate:"desc"}}) : Promise.resolve([{id:course.id,code:course.code,name:course.name,courseType:course.courseType,courseBatch:course.courseBatch,status:course.status}]),
+    ]);
+    return <RegistrationList key={tab} initialPage={result} courses={courses} role={actor.role} permissions={actor.permissions} mode="manage" fixedClassId={classId} view={tab} />;
+  }
+  const managers=actor.role === "ADMIN" && can(actor,"classes.edit") ? await prisma.user.findMany({where:{role:"CLASS_MANAGER",active:true},select:{id:true,username:true},orderBy:{username:"asc"}}) : undefined;
+  const date=(value:Date)=>value.toLocaleDateString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"});
+  return actor.role !== "ACCOUNTANT" && can(actor,"classes.edit") ? <ClassDetails course={course} managers={managers} /> : <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 font-semibold">Thông tin lớp</h2><dl className="grid gap-5 sm:grid-cols-2">{[["Mã lớp",course.code],["Tên lớp",course.name],["Học phí",`${course.fee.toLocaleString("vi-VN")} đồng`],["Người phụ trách",course.manager?.username || "Chưa phân công"],["Địa điểm",course.location],["Lịch học",`${date(course.startDate)} – ${date(course.endDate)}`],["Chứng nhận",course.certificateType === "CONFIRMATION" ? "Giấy xác nhận" : "Giấy chứng nhận"]].map(([label,value])=><div key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 font-medium">{value || "Chưa có"}</dd></div>)}</dl></section>;
 }

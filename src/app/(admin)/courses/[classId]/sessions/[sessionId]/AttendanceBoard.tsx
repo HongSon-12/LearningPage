@@ -99,7 +99,7 @@ function IdentityReview({
             target="_blank"
             rel="noopener noreferrer"
           >
-            Mở tài liệu căn cước đã đăng ký
+            Xem CCCD
           </a>
         </Button>
       )}
@@ -118,9 +118,9 @@ function IdentityReview({
           <X />
           Không khớp / Đóng
         </Button>
-        <Button disabled={!compared || busy} onClick={onConfirm}>
+        <Button loading={busy} disabled={!compared || busy} onClick={onConfirm}>
           <Check />
-          {busy ? "Đang ghi nhận…" : "Xác nhận có mặt"}
+          {busy ? "Đang ghi nhận…" : "Điểm danh"}
         </Button>
       </div>
     </div>
@@ -293,7 +293,7 @@ export default function AttendanceBoard({
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Nhập ít nhất 2 ký tự…"
               />
-              <Button disabled={busy} type="submit">
+              <Button loading={busy} type="submit">
                 <Search />
                 <span className="sr-only sm:not-sr-only">Tìm học viên</span>
               </Button>
@@ -403,6 +403,7 @@ export default function AttendanceBoard({
       </section>
       {selected && !closed && (
         <AdminDialog
+          busy={busy}
           initialFocusId="identity-review-name"
           title="Đối chiếu căn cước trước khi điểm danh"
           subtitle={

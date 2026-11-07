@@ -2,6 +2,7 @@
 
 import { requireUser } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { TRANSFER_SYNTAX } from "@/lib/payment-content";
 import { revalidatePath } from "next/cache";
 
 export async function updateSettings(formData: FormData) {
@@ -10,7 +11,7 @@ export async function updateSettings(formData: FormData) {
     const bankName = formData.get("bankName") as string;
     const accountName = formData.get("accountName") as string;
     const accountNumber = formData.get("accountNumber") as string;
-    const transferSyntax = formData.get("transferSyntax") as string;
+    const transferSyntax = TRANSFER_SYNTAX;
     const googleAnalyticsId = formData.get("googleAnalyticsId") as string || null;
     const facebookPixelId = formData.get("facebookPixelId") as string || null;
     const microsoftClarityId = formData.get("microsoftClarityId") as string || null;

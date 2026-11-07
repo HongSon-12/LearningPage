@@ -7,13 +7,14 @@ import {
   errorResponse,
 } from "@/lib/security";
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser, requirePermission } from "@/lib/auth";
 import { excelExport, readExcel, importExcel } from "@/lib/excel";
 import { errorMessage } from "@/lib/admissions";
 import { revalidatePath } from "next/cache";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
+    await requirePermission("excel.export");
     const params = new URL(request.url).searchParams;
     await rateLimit("export", user.id, 30, 60 * 60 * 1000);
     const buffer = await excelExport(
@@ -36,13 +37,14 @@ export async function GET(request: Request) {
       },
     });
   } catch (error) {
-    return NextResponse.json({ error: errorMessage(error) }, { status: 403 });
+    return NextResponse.json({ error: errorMessage(error) }, { status: 403, headers: {"Cache-Control":"no-store"} });
   }
 }
 export async function POST(request: Request) {
   try {
     assertOrigin(request);
     const actor = await requireUser();
+    await requirePermission("excel.import");
     await rateLimit(
       "import",
       actor.id + requestIdentity(request.headers),

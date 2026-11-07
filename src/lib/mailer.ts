@@ -13,6 +13,8 @@ const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
   port: parseInt(process.env.SMTP_PORT || "587"),
   secure: process.env.SMTP_SECURE === "true",
+  requireTLS: process.env.NODE_ENV === "production" && process.env.SMTP_SECURE !== "true",
+  tls: { minVersion: "TLSv1.2" },
   connectionTimeout: 15000,
   greetingTimeout: 15000,
   socketTimeout: 60000,

@@ -1,17 +1,19 @@
+import {RequestError} from "@/lib/errors";
 import type { Prisma } from "@prisma/client";
 import { assertClassAccess, type Actor } from "@/lib/permissions";
-import { availableClass, registrationData, preventDuplicate, validateProgram } from "@/lib/admissions";
+import { availableClass, lockClasses, registrationData, preventDuplicate, validateProgram } from "@/lib/admissions";
 export async function transferInTransaction(tx: Prisma.TransactionClient, user: Actor, id: string, classId: string, reason: string) {
- if (!["ADMIN","CLASS_MANAGER"].includes(user.role)) throw new Error("Bạn không có quyền chuyển lớp.");
- if (!reason.trim()) throw new Error("Vui lòng nhập lý do chuyển lớp.");
+ if (!["ADMIN","CLASS_MANAGER"].includes(user.role)) throw new RequestError("Bạn không có quyền chuyển lớp.");
+ if (!reason.trim()) throw new RequestError("Vui lòng nhập lý do chuyển lớp.");
 
       const reg = await tx.registration.findUniqueOrThrow({where:{id},include:{class:true}}); assertClassAccess(user,reg.class);
-      if (reg.classId === classId) throw new Error("Vui lòng chọn lớp khác.");
-      if (reg.status === "REJECTED" || reg.paymentStatus === "CANCELLED") throw new Error("Cần kích hoạt lại hồ sơ trước khi chuyển lớp.");
-      if (reg.certificateCode || reg.confirmationNumber || reg.invoiceCode || reg.class.status === "DONE") throw new Error("Hồ sơ đã có chứng từ hoặc lớp đã kết thúc. Cần xử lý chứng từ trước khi chuyển.");
+      await lockClasses(tx, [reg.classId, classId]);
+      if (reg.classId === classId) throw new RequestError("Vui lòng chọn lớp khác.");
+      if (reg.status === "REJECTED" || reg.paymentStatus === "CANCELLED") throw new RequestError("Cần kích hoạt lại hồ sơ trước khi chuyển lớp.");
+      if (reg.certificateCode || reg.confirmationNumber || reg.invoiceCode || reg.class.status === "DONE") throw new RequestError("Hồ sơ đã có chứng từ hoặc lớp đã kết thúc. Cần xử lý chứng từ trước khi chuyển.");
       const target = await availableClass(tx, classId); assertClassAccess(user, target);
-      if (target.courseType !== reg.class.courseType) throw new Error("Chỉ chuyển giữa các lớp cùng chương trình.");
-      if (target.fee !== reg.class.fee) throw new Error("Hai lớp khác học phí. Cần đối soát chênh lệch trước khi chuyển.");
+      if (target.courseType !== reg.class.courseType) throw new RequestError("Chỉ chuyển giữa các lớp cùng chương trình.");
+      if (target.fee !== reg.class.fee) throw new RequestError("Hai lớp khác học phí. Cần đối soát chênh lệch trước khi chuyển.");
       const data = registrationData({...reg, classId, email: reg.email || undefined, organization: reg.organization || undefined,
         cccd: reg.cccd || undefined, workplace: reg.workplace || undefined, idPhotoUrl: reg.idPhotoUrl || undefined,
         degreeUrl: reg.degreeUrl || undefined, paymentReceiptUrl: reg.paymentReceiptUrl || undefined, note: reg.note || undefined,

@@ -73,3 +73,13 @@ next-env.d.ts
 
 # Sensitive documents must never return to the public tree.
 /public/uploads/
+
+# Deployment credentials and private backup artifacts
+/backups/
+/secrets/
+*.dump
+*.backup
+*.key
+*.p12
+*.pfx
+.pgpass

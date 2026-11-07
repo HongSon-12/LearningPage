@@ -131,11 +131,12 @@ test("each admin page has one top title and uses the available width", async ({
   await page.setViewportSize({ width: 1866, height: 938 });
   for (const [path, title] of [
     ["/", "Tổng quan hệ thống"],
-    ["/courses", "Quản lý Khóa học"],
+    ["/courses", "Lớp học"],
     ["/registrations", "Kiểm tra thông tin đăng ký"],
     ["/students", "Hồ sơ học viên"],
     ["/course-links", "Link khóa học"],
-    ["/users", "Tài khoản và phân quyền"],
+    ["/users", "Tài khoản đăng nhập"],
+    ["/permissions", "Phân quyền vai trò"],
     ["/settings", "Cấu hình hệ thống"],
   ]) {
     await page.goto(path);
@@ -147,20 +148,21 @@ test("each admin page has one top title and uses the available width", async ({
       page.getByText("Hệ thống Quản trị", { exact: true }),
     ).toHaveCount(0);
     const top = await page.locator('[data-slot="admin-topbar"]').boundingBox();
-    expect(top!.height).toBe(64);
+    expect(top!.height).toBe(80);
     const main = await page.locator("#admin-main").boundingBox(),
       body = await page.locator("#admin-main>div>div").boundingBox();
     expect(body!.x - main!.x).toBeLessThanOrEqual(21);
-    expect(main!.x + main!.width - body!.x - body!.width).toBeLessThanOrEqual(
+    const availableWidth=await page.locator("#admin-main").evaluate(el=>el.clientWidth);
+    expect(main!.x + availableWidth - body!.x - body!.width).toBeLessThanOrEqual(
       21,
     );
     await noOverflow(page);
     const badge = page.locator('[data-slot="badge"]').first();
-    if (await badge.count()) expect(await badge.evaluate(el => getComputedStyle(el).fontSize)).toBe("14px");
+    if (await badge.count()) await expect(badge).toHaveCSS("font-size","14px");
     const actionHead = page.getByRole("columnheader", { name: "Thao tác", exact: true });
     if (await actionHead.count()) {
-      expect(await actionHead.evaluate(el => getComputedStyle(el).textAlign)).toBe("right");
-      expect(await actionHead.evaluate(el => getComputedStyle(el).fontSize)).toBe("16px");
+      await expect(actionHead).toHaveCSS("text-align","right");
+      await expect(actionHead).toHaveCSS("font-size","16px");
     }
     if (["/courses", "/registrations", "/users"].includes(path)) await page.screenshot({ path: `.local/ui-layout/consistency-${path.slice(1)}.png`, fullPage: true });
   }
@@ -303,9 +305,11 @@ test("profile title follows navigation and detail layout is side by side or stac
 
 test("table hover stays continuous with visible action buttons and larger admin type", async ({ page }) => {
   await page.setViewportSize({ width: 1866, height: 938 });
-  for (const path of ["/courses", "/registrations", "/users"]) {
+  for (const path of ["/courses", "/registrations"]) {
     await page.goto(path);
     const row = page.locator('tbody tr').first();
+    await expect(row).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
     const cells = row.locator('td');
     const before = await cells.evaluateAll(nodes => nodes.map(node => {
       const box = node.getBoundingClientRect();
@@ -344,6 +348,9 @@ test("table hover stays continuous with visible action buttons and larger admin 
     expect(style.size).toBe('16px');
     const heads = await page.locator('thead th').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
     expect(new Set(heads).size).toBe(1);
+    const alignments=await page.locator("thead th").evaluateAll(heads=>heads.map((head,index)=>({head:getComputedStyle(head).textAlign,body:getComputedStyle(document.querySelectorAll("tbody tr")[0].children[index]).textAlign})));
+    for(const align of alignments) expect(align.head).toBe(align.body);
+    expect(await cells.first().evaluate(node=>getComputedStyle(node).borderRightWidth)).toBe("0px");
     await page.screenshot({ path: `.local/ui-layout/hover-${path.slice(1)}.png`, fullPage: true });
   }
   await page.goto('/courses');

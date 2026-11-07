@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import Link from "next/link";
+import {PendingLink as Link} from "@/components/navigation/navigation-feedback";
 import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { usePathname } from "next/navigation";
@@ -64,7 +64,7 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         
         {/* Logo */}
         <div className="flex items-center">

@@ -278,11 +278,11 @@ test("calendar and time selectors inside class dialog preserve RHF ISO values", 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/courses");
   await page
-    .getByRole("button", { name: "Thêm Khóa học", exact: true })
+    .getByRole("button", { name: "Tạo lớp", exact: true })
     .click();
   const dialog = page.getByRole("dialog").filter({
     has: page.getByRole("heading", {
-      name: "Thêm Khóa Học Mới",
+      name: "Tạo lớp",
       exact: true,
     }),
   });
@@ -323,7 +323,7 @@ test("calendar and time selectors inside class dialog preserve RHF ISO values", 
     animations: "disabled",
   });
   await dialog
-    .getByRole("button", { name: "Lưu Khóa Học", exact: true })
+    .getByRole("button", { name: "Tạo lớp", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
   const saved = await prisma.class.findUniqueOrThrow({
@@ -371,7 +371,7 @@ test("date-time popup preserves session date and UTC+7 time", async ({
     .getByRole("textbox", { name: "Kết thúc", exact: true })
     .fill("01/03/2099 12:45");
   await dialog
-    .getByRole("button", { name: "Lưu buổi học", exact: true })
+    .getByRole("button", { name: "Lưu", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
   const saved = await prisma.classSession.findFirstOrThrow({
@@ -388,7 +388,7 @@ test("profile FormData uses canonical date and manual intake uses select default
   await input.fill("29/02/1992");
   await page.getByRole("checkbox").check();
   await page
-    .getByRole("button", { name: "Lưu hồ sơ đã đối chiếu", exact: true })
+    .getByRole("button", { name: "Lưu hồ sơ", exact: true })
     .click();
   await expect(page.getByRole("status")).toContainText("Đã lưu hồ sơ học viên");
   expect(
@@ -398,7 +398,7 @@ test("profile FormData uses canonical date and manual intake uses select default
   ).toBe("1992-02-29");
   await page.goto(`/courses/${classIds[0]}`);
   await page
-    .getByRole("button", { name: "Thêm học viên / Đăng ký vét", exact: true })
+    .getByRole("button", { name: "Thêm học viên", exact: true })
     .click();
   const dialog = page.getByRole("dialog");
   await expect(
@@ -423,7 +423,7 @@ test("profile FormData uses canonical date and manual intake uses select default
     "FEMALE",
   );
   await dialog
-    .getByRole("button", { name: "Lưu học viên", exact: true })
+    .getByRole("button", { name: "Lưu", exact: true })
     .click();
   await expect(dialog).toHaveCount(0);
   const saved = await prisma.registration.findFirstOrThrow({

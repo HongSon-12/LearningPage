@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { requestSearchCode, verifySearchCode } from "@/app/actions/search";
 import { Button } from "@/components/ui/button";
+import {OtpInput} from "@/components/ui/otp-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 type Result = NonNullable<Awaited<ReturnType<typeof verifySearchCode>>["data"]>;
@@ -87,19 +88,8 @@ export default function SearchClient() {
             </p>
             <div className="space-y-2">
               <Label htmlFor="lookup-otp">Mã xác thực</Label>
-              <Input
-                id="lookup-otp"
-                required
-                autoComplete="one-time-code"
-                inputMode="numeric"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                value={code}
-                onChange={(event) =>
-                  setCode(event.target.value.replace(/[^0-9]/g, "").slice(0, 6))
-                }
-                className="max-w-xs text-center text-xl tracking-[0.4em]"
-              />
+              <OtpInput id="lookup-otp" value={code} onValueChange={setCode} disabled={busy}/>
+
             </div>
             <div className="flex flex-wrap gap-3">
               <Button disabled={busy || code.length !== 6} type="submit">

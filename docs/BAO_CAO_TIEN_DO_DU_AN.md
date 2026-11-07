@@ -1,192 +1,91 @@
-# Báo cáo tiến độ dự án quản lý đào tạo TTCC 115
+# Báo cáo tiến độ quản lý đào tạo TTCC 115
 
-**Ngày rà soát:** 17/10/2026 (Asia/Bangkok).  
-**Phạm vi:** mã nguồn `ttcc-app`, tài liệu trong `docs` và các yêu cầu đã trao đổi.  
-**Trạng thái tổng thể:** Đã triển khai phần lớn chức năng quản trị và đăng ký; cần hoàn tất nghiệm thu giao diện, xác nhận nghiệp vụ và kiểm tra vận hành. Chưa kết luận sẵn sàng triển khai chính thức.
+**Cập nhật:** 07/11/2026, Asia/Bangkok.
+**Phạm vi:** workspace `Learning` ở repository root; package 0.1.3.
+**Trạng thái:** mã nguồn và kiểm thử local đã hoàn tất các phần bên dưới; chưa phát hành/nghiệm thu máy chủ thật. Tài khoản SSO thật chưa được kéo về vì người triển khai sẽ tự điền bí mật.
 
-## 1. Hiện tại đã làm tới đâu?
-
-- **Đã có trong mã:** quản lý lớp/học viên, đăng ký trực tuyến và thủ công/vét, chuyển lớp, duyệt/từ chối, thanh toán, GCN/GXN, hóa đơn, Excel, tài khoản và phân quyền.
-- **Đã điều chỉnh giao diện:** tổng quan, chi tiết học viên theo lớp, kiểm tra đăng ký, cài đặt, tài khoản và trang Link khóa học.
-- **Đã có đường dẫn công khai:** Landing Page chính, trang chương trình/lớp, lịch khai giảng, đăng ký và tra cứu. Các trang chương trình đang dùng một mẫu chung có nội dung/màu sắc riêng; concept thiết kế hoàn chỉnh cho từng khóa vẫn cần nghiệm thu.
-- **Vướng ở lần kiểm tra hiện tại:** PostgreSQL tại `127.0.0.1:5432` không kết nối được, khiến build đầy đủ và kiểm thử nghiệp vụ chưa hoàn tất. Đây là kết quả kiểm tra môi trường, không phải bằng chứng mất dữ liệu hay tính năng đã hỏng.
-
-**Cách đọc trạng thái:** “Đã triển khai” nghĩa là đã có xử lý trong mã nguồn. “Đã kiểm tra trước đây” không đồng nghĩa với đã kiểm tra lại ngày 17/10/2026. Chỉ đánh dấu nghiệm thu khi đã thực hiện tình huống kiểm tra thực tế và xác nhận kết quả.
-
-## 2. Các màn hình và đường dẫn hiện tại
-
-Địa chỉ phát triển mặc định: `http://localhost:3001` khi đã chạy ứng dụng và cơ sở dữ liệu.
-
-| Đường dẫn | Mục đích / phần đã làm |
-| --- | --- |
-| `/` | Hệ thống Quản trị. Tổng quan lớp mở, hồ sơ chờ duyệt, thanh toán, truy cập nhanh, đăng ký gần đây, lịch lớp và thống kê truy cập. Quản trị xem dashboard; vai trò khác được chuyển sang trang đăng ký. |
-| `/login` | Đăng nhập tài khoản quản trị, quản lý lớp và kế toán. |
-| `/courses` | Danh sách lớp; thêm/sửa/xóa theo quyền; nút **Quản lý học viên** mở trang riêng của lớp. |
-| `/courses/[classId]` | Sĩ số, hồ sơ chờ duyệt, thanh toán; danh sách học viên, thủ công/vét, Excel. Chi tiết chia thành **Thông tin & hồ sơ / Chuyển lớp / Chứng từ / Lịch sử** theo quyền. |
-| `/registrations` | Kiểm tra thông tin và tài liệu đăng ký, duyệt/từ chối kèm lý do. **Quản trị và Kế toán có thể chỉnh Thanh toán ngay trong bảng**; Quản lý lớp chỉ xem thanh toán. Mặc định lọc hồ sơ chờ duyệt. |
-| `/course-links` | Chỉ hiển thị **5 khóa học chính**, không liệt kê link từng lớp. Chọn khóa và sao chép link trực tiếp, Facebook, Zalo, Fanpage; có nút mở trang và phản hồi đã sao chép. |
-| `/settings` | Thông tin ngân hàng, chủ tài khoản, số tài khoản và cú pháp chuyển khoản; có phần xem trước. Chỉ Quản trị được sửa. |
-| `/users` | Tài khoản, vai trò, trạng thái hoạt động; bộ lọc, cửa sổ chỉnh sửa và phần phân công quản lý lớp. Chỉ Quản trị được sử dụng. |
-| `/hocsocapcuu` | Landing Page Sơ cấp cứu cộng đồng. |
-| `/hocsocapcuu/courses` | Lịch khai giảng công khai; thay đường dẫn `/courses` công khai trước đây. |
-| `/dao-tao/[slug]` | Trang giới thiệu theo chương trình đào tạo. |
-| `/lop/[classId]` | Trang giới thiệu của một lớp cụ thể. Không đưa link từng lớp vào trang quản trị `/course-links`. |
-| `/register/[classId]` | Đăng ký nhiều bước và thông tin thanh toán theo lớp. |
-| `/search` | Tra cứu thông tin/chứng từ theo xử lý hiện có. |
-| `/admin`, `/admin/...` | Đường dẫn cũ tự chuyển sang đường dẫn mới bỏ tiền tố `/admin`. |
-| `/fb`, `/zalo`, `/page` | Chuyển đến `/hocsocapcuu` kèm tham số nguồn tương ứng. |
-
-## 3. Đối chiếu các tính năng đã yêu cầu
-
-| Yêu cầu | Tiến độ triển khai | Ràng buộc / phần còn lại |
-| --- | --- | --- |
-| Chuyển học viên giữa các lớp | Đã triển khai | Cùng chương trình, cùng học phí, lớp đích đang nhận đăng ký, còn chỗ và trong phạm vi được giao. Không chuyển hồ sơ bị từ chối/đã hủy, đã có hóa đơn/GCN/GXN hoặc lớp cũ đã kết thúc. Giữ trạng thái và lưu lịch sử. |
-| Đăng ký thủ công/vét | Đã triển khai trong trang học viên của lớp | Dùng thông tin và hồ sơ theo chương trình. Vét được qua hạn đăng ký khi lớp vẫn OPEN và còn chỗ; không cho vượt sĩ số. |
-| Quản lý học viên theo khóa/lớp | Đã triển khai | Tìm theo họ tên, điện thoại, CCCD, mã hồ sơ; bộ lọc chương trình/khóa/lớp và trạng thái hồ sơ. Chưa có bộ lọc riêng đầy đủ cho mọi tiêu chí được đề xuất như hình thức đăng ký hoặc trạng thái gửi GCN. |
-| Lớp/khóa liên quan trên Landing Page | Đã có xử lý và giao diện | Lấy lớp OPEN có lịch phù hợp, tránh lặp lớp đang xem. Chưa có trạng thái “sắp mở” riêng hoặc giao diện chọn thủ công lớp liên quan. |
-| Quản lý lớp và Kế toán | Đã triển khai | Phân quyền cả giao diện và máy chủ; Quản lý lớp bị giới hạn theo lớp được giao. |
-| Concept riêng từng Landing Page | Triển khai một phần | Đã có route, nội dung và màu sắc theo chương trình; các trang mới dùng chung `ProgramLanding`. Chưa xác nhận thiết kế/nội dung cuối cùng của từng khóa. |
-| Ghi nhận chỗ khi sang Bước 3 | Đã triển khai | Kiểm tra và lưu hồ sơ trước khi mở bước thanh toán; các luồng ảnh hưởng sĩ số dùng chung giao dịch/khóa. Gửi lại yêu cầu không tạo trùng. |
-| Lý do từ chối | Đã triển khai | Bắt buộc khi từ chối, lưu trong hồ sơ/lịch sử. Chưa tự động gửi lý do này qua email. |
-| Import/Export Excel và trường mới | Đã triển khai | `.xlsx`, tối đa 500 dòng/5 MB; có mẫu, kiểm tra trước khi lưu; file lỗi không được lưu một phần. Nhập tại trang lớp phải khớp lớp đó. |
-
-### Các trường hậu kỳ đã có
-
-- [x] Đã gửi GCN trực tiếp.
-- [x] Đã gửi GCN qua bưu điện.
-- [x] Số GXN.
-- [x] Mã hóa đơn điện tử.
-- [x] Số GCN/chứng chỉ, trạng thái thanh toán và trạng thái hồ sơ.
-- [x] Hình thức đăng ký, lý do từ chối và lịch sử thay đổi.
-
-Hai trạng thái gửi GCN là ghi nhận đã thực hiện phương thức gửi; không xác nhận bưu điện đã giao thành công. Chưa có quy trình theo dõi mã bưu gửi/ngày gửi/người nhận riêng.
-
-## 4. Những phần nền tảng đã có
+## 1. Phần đã hoàn thành
 
 | Hạng mục | Hiện trạng |
 | --- | --- |
-| Next.js, TypeScript, Prisma, PostgreSQL | Đã có cấu trúc ứng dụng và kết nối dữ liệu. |
-| Migration dữ liệu | Có baseline và migration bổ sung ngày 06/10/2026. Đã ghi nhận áp dụng ở đợt thiết lập trước; chưa kiểm tra lại trạng thái DB hiện tại do không kết nối được. |
-| Đăng nhập | bcrypt, phiên đăng nhập lưu phía máy chủ, cookie HttpOnly; giới hạn đăng nhập sai. Mã hiện tại dùng session tự quản, không mặc định coi tài liệu NextAuth trong `docs/auth` là đã tích hợp. |
-| Khóa/đổi quyền tài khoản | Có kiểm tra phiên và thu hồi phiên theo thao tác tài khoản. |
-| Kiểm soát sĩ số | Hồ sơ khác REJECTED và thanh toán khác CANCELLED chiếm một chỗ. Từ chối/hủy giải phóng chỗ; kích hoạt lại phải kiểm tra chỗ và trùng hồ sơ. |
-| Cập nhật sĩ số công khai | Trang học viên đang mở làm mới định kỳ 15 giây khi tab đang hiển thị; máy chủ quyết định tiếp nhận hồ sơ. |
-| Upload hồ sơ | Có giới hạn dung lượng, loại file và kiểm tra nội dung đầu file; hỗ trợ ảnh/PDF. |
-| Tra cứu | Có giao diện và xử lý máy chủ, trả dữ liệu phục vụ tra cứu thay vì toàn bộ hồ sơ đính kèm. |
-| Email | Có mẫu và điểm gọi xác nhận đăng ký trực tuyến, mã hóa đơn và chứng chỉ. Cần SMTP thực để xác nhận gửi/nhận. |
-| Email nhắc lịch | Có hàm tạo/gửi thư nhắc; chưa thấy điểm gọi/lịch chạy tự động trong `src` khi rà soát. Chưa đánh dấu hoàn thiện nhắc lịch tự động. |
-| Docker / Nginx | Có `Dockerfile`, `docker-compose.yml`, `nginx.conf` trong `ttcc-app`; chưa nghiệm thu đầy đủ quy trình build/chạy qua Docker và Nginx ở lần rà soát này. |
-| Máy chủ phát triển | `pnpm dev` mặc định dùng cổng 3001. |
+| Nghiệp vụ | Quản lý lớp, hồ sơ/học viên, đăng ký online/thủ công/vét, giữ chỗ, chuyển lớp, duyệt/từ chối, học phí, GCN/GXN/hóa đơn, Excel và lịch sử thay đổi |
+| Hiệu năng lớp | Phân trang phía máy chủ, rút gọn dữ liệu truy vấn, dùng lại dữ liệu danh sách ban đầu, khóa theo lớp/danh tính và bảo vệ retry/chỗ cuối; thống nhất tab bằng query trên `/courses/[classId]` |
+| Phản hồi giao diện | Khung chờ khi điều hướng, spinner/khóa thao tác khi lưu, chống bấm lặp, thông báo lỗi phù hợp production; mã OTP 6 ô có dán mã/số 0 đầu/đếm ký tự |
+| Tài liệu riêng tư | Upload giới hạn loại/dung lượng, chuẩn hóa ảnh, kiểm tra nội dung file và quyền tải; tài liệu ngoài public, chặn đường dẫn uploads cũ |
+| Xác thực production | OIDC với Authentik tại SSO 115; PKCE/state/nonce/JWKS; thông tin tài khoản và mật khẩu quản lý tại SSO |
+| Quyền edu | `nlhson` được khởi tạo ADMIN khi đồng bộ; người mới khác chờ cấp quyền. Active = SSO active AND được admin edu cấp quyền. Vai trò/lớp vẫn do edu quản lý |
+| Thu hồi phiên | Logout qua end-session; xác minh back-channel; chống phát lại/callback muộn; đối soát introspection và trạng thái tài khoản; tab kiểm tra định kỳ/khi focus và chặn thao tác khi chưa xác minh |
+| Đồng bộ tài khoản | CLI dry-run/apply có phân trang và chống trùng. Webhook Bearer nhận eventId, đọc sự kiện/tài khoản đích từ SSO rồi cập nhật; không coi actor sự kiện là tài khoản đích |
+| Email | Cấu hình production `pro66.emailserver.vn:465`, TLS, user `edu@115.org.vn`; worker OTP chạy bền vững, lease/retry/heartbeat và dọn dữ liệu SSO hết hạn. OTP học viên giữ nguyên; mật khẩu nhân sự chuyển về SSO |
+| Bảo mật dependency | Next.js 16.4.1, Nodemailer 10.1.4 và bản vá dependency liên quan; audit production ngày 07/11 báo 0 lỗ hổng |
+| Triển khai | Image web/ops Alpine chạy non-root, private uploads volume, health checks; file môi trường mẫu và `.env.production` có placeholder, Git/Docker loại bí mật khỏi artifact |
 
-## 5. Phân quyền đang áp dụng
+## 2. Tách local và máy chủ thật
 
-| Thao tác | Quản trị | Quản lý lớp | Kế toán |
-| --- | --- | --- | --- |
-| Xem lớp và học viên | Toàn bộ | Lớp được giao | Xem để đối soát |
-| Tạo/xóa lớp | Có | Không | Không |
-| Sửa lớp | Có | Lớp được giao | Không |
-| Thêm thủ công/vét, chuyển lớp, duyệt/từ chối | Có | Lớp được giao | Không |
-| Cập nhật thanh toán tại `/registrations` và trang lớp | Có | Chỉ xem | Có |
-| Cập nhật mã hóa đơn | Có | Chỉ xem | Có |
-| Cập nhật GCN/GXN và trạng thái gửi GCN | Có | Lớp được giao | Chỉ xem |
-| Import/Export Excel | Theo quyền quản trị | Theo lớp/trường được cấp quyền | Theo trường kế toán được cấp quyền |
-| Cấu hình, tài khoản, phân công lớp | Có | Không | Không |
-
-Đây là quyền trong mã hiện tại. Nếu muốn thay đổi quyền hoặc cho một người kiêm nhiều vai trò, cần chốt và triển khai thêm.
-
-## 6. Kết quả kiểm tra
-
-### Kiểm tra lại ngày 17/10/2026
-
-| Kiểm tra | Kết quả | Diễn giải |
+| | Local hiện tại | Production đã chuẩn bị |
 | --- | --- | --- |
-| `pnpm exec tsc --noEmit` | Đạt | Không báo lỗi kiểu dữ liệu. |
-| ESLint các trang quản trị vừa cải thiện và component dùng chung | Đạt | Không báo lỗi ở phạm vi đã chạy; không coi đây là kết quả lint toàn bộ kho mã. |
-| `NEXT_BUILD_DIR=.next-build pnpm build` | Chưa đạt đầy đủ | Biên dịch và TypeScript thành công; lỗi khi dựng trang `/_not-found` do `RootLayout` đọc cấu hình từ DB nhưng không kết nối được `127.0.0.1:5432` (Prisma P1001). |
-| `pnpm test:management` | Chưa chạy được tình huống kiểm thử | Dừng khi kết nối PostgreSQL, báo ECONNREFUSED tại `127.0.0.1:5432`; chưa tạo được schema thử. |
-| `pnpm test:http` | Chưa chạy lại | Cần cơ sở dữ liệu và ứng dụng đang hoạt động. |
-| Kiểm tra trực quan trên trình duyệt, điện thoại | Chưa nghiệm thu | Các lượt trước công cụ trình duyệt gặp lỗi môi trường; chưa có xác nhận trực quan đầy đủ. |
-| Docker/Nginx, tên miền, HTTPS, SMTP thực | Chưa nghiệm thu | Chưa có bằng chứng kiểm tra vận hành đầy đủ trong đợt này. |
+| Compose | `docker-compose.local.yml`; `docker-compose.yml` mặc định include local | `docker-compose.production.yml`, chạy độc lập |
+| Project/volume | Giữ `ttcc-app`, `ttcc-app_pgdata`, `ttcc-app_uploads` | `learning-production`, volume uploads riêng; DB/Nginx đã có |
+| Database | `postgres:16-alpine`, localhost:5432 hoặc service postgres trong local stack | `PG_HOST=cap-cuu-115-db`, `PG_PORT=5432`, database `edu`, user `edu_user` |
+| Mạng | Mạng local của project, không tham gia mạng server | `DB_NETWORK=cap-cuu-115_private`, `PROXY_NETWORK=cap-cuu-115_private`, external |
+| HTTP/proxy | `pnpm dev`: localhost:3001; local container Nginx: localhost:80 | Nginx hiện có trên PROXY_NETWORK → `edu-app:3000`, không publish app port |
+| Xác thực | `AUTH_MODE=local` phục vụ phát triển/fixture | `AUTH_MODE=sso`, domain `https://edu.115.org.vn` |
+| Env | `.env`, mẫu `deploy/local.env.example` | `.env.production`, mẫu `deploy/production.env.example`; tự điền bí mật |
 
-### Các kết quả đã đạt ở đợt làm việc trước
+Local có service one-shot `uploads-init` chỉ chỉnh quyền named volume uploads về UID/GID 1000 trước khi app chạy; giữ nội dung và các volume cũ. Hai mạng production hiện cùng một mạng thật; cấu hình còn hỗ trợ tách hai mạng sau này. Worker/ops chỉ gắn logical database network. Không khởi động production trên máy local hay tạo/chạm vào mạng `cap-cuu-115_private` trong đợt kiểm tra này.
 
-Theo các lần kiểm tra được ghi nhận trong quá trình triển khai:
+## 3. Các đường dẫn hiện hành
 
-- Build production, TypeScript, lint phần thay đổi và kiểm tra HTTP đã từng đạt khi môi trường DB hoạt động.
-- Kiểm tra 39/40 chỗ với 12 yêu cầu đồng thời: chỉ nhận thêm 1 học viên.
-- Gửi lại cùng yêu cầu không tạo hồ sơ trùng; token khác không được cập nhật biên lai của hồ sơ.
-- Chuyển lớp cập nhật hai danh sách/sĩ số và lịch sử, chặn thao tác ngoài quyền.
-- Excel kiểm tra trước không lưu; xác nhận mới lưu; file lỗi được hoàn tác; giữ số 0 đầu điện thoại/CCCD; kiểm tra trường kế toán và file sai lớp.
-- Đăng ký vét qua hạn nhưng không vượt sĩ số.
-- HTTP kiểm tra đăng nhập thật, tải trang, tải Excel, phạm vi Quản lý lớp/Kế toán và phiên tài khoản bị khóa.
+- `/`: tổng quan theo quyền; `/courses`: danh sách lớp.
+- `/courses/[classId]?tab=students|sessions|documents|info`: không gian làm việc lớp. Link `/sessions` cũ chuyển về tab tương ứng; màn điểm danh chi tiết vẫn dùng route riêng.
+- `/students`, `/registrations`: hồ sơ và quản lý đăng ký theo quyền.
+- `/users`, `/permissions`, `/courses/assignments`: quyền/tài khoản/phân công; `/account`: thông tin tài khoản SSO chỉ đọc trong production.
+- `/help`: hướng dẫn và phiên bản; version ở topbar/menu tài khoản dẫn tới nội dung này.
+- `/hocsocapcuu`, `/dao-tao/[slug]`, `/lop/[classId]`, `/hocsocapcuu/courses`, `/register/[classId]`, `/search`: các luồng công khai/học viên.
+- `/login` production chuyển qua SSO; callback `/api/auth/callback/authentik`; webhook `/api/auth/webhook/authentik`; back-channel `/api/auth/backchannel-logout`; trang sau logout `/da-dang-xuat`.
 
-Các kết quả này là lịch sử kiểm tra, cần chạy lại sau khi khôi phục kết nối DB để xác nhận hiện trạng.
+## 4. Bằng chứng đã đạt ở local
 
-## 7. Việc cần làm tiếp, theo thứ tự ưu tiên
-
-### Ưu tiên 1 — Khôi phục môi trường và xác nhận bản hiện tại
-
-- [ ] Kiểm tra PostgreSQL/dịch vụ DB và địa chỉ kết nối trong môi trường phát triển; không mặc định tạo lại hoặc xóa DB.
-- [ ] Kiểm tra migration đã áp dụng trên đúng DB sau khi kết nối được.
-- [ ] Chạy lại build production, `pnpm test:management` và `pnpm test:http`.
-- [ ] Xác nhận trang `/`, `/courses/[classId]`, `/registrations`, `/settings`, `/users`, `/course-links` mở và thao tác được.
-
-### Ưu tiên 2 — Nghiệm thu giao diện và nghiệp vụ
-
-- [ ] Kiểm tra thực tế trên máy tính và điện thoại: thanh bên, bảng dài, bộ lọc, hộp thoại, cuộn trang và thao tác bàn phím.
-- [ ] Duyệt lại 5 Landing Page: nội dung, hình ảnh, concept và điều kiện tuyển sinh. Chốt phạm vi chỉ tạo route hay hoàn thiện thiết kế riêng; tài liệu yêu cầu hiện có nội dung chưa thống nhất ở điểm này.
-- [ ] Chốt định nghĩa “cùng khóa học”: hiện chuyển theo `courseType`, chưa bắt buộc cùng `courseBatch`.
-- [ ] Chốt xử lý chuyển lớp khác học phí hoặc đã phát hành chứng từ; hiện hệ thống chặn các trường hợp này.
-- [ ] Chốt thời hạn giữ chỗ cho hồ sơ chưa thanh toán; **hiện chưa có tự động hết hạn giữ chỗ**.
-- [ ] Chốt các bộ lọc bổ sung có cần đưa vào phạm vi nghiệm thu: thanh toán, hình thức đăng ký, trạng thái gửi GCN.
-- [ ] Chốt quy trình gửi GCN: có cần ngày gửi, người gửi, mã bưu gửi hay không.
-
-### Ưu tiên 3 — Email và triển khai thực tế
-
-- [ ] Cấu hình SMTP và thử gửi/nhận thư thật cho các tình huống hiện có.
-- [ ] Chốt có gửi xác nhận cho đăng ký thủ công/vét và gửi lý do từ chối hay không; chưa coi hai luồng này là đã hoàn thiện email.
-- [ ] Nếu cần nhắc lịch tự động: bổ sung điểm gọi/lịch chạy và kiểm tra tránh gửi trùng.
-- [ ] Kiểm tra Docker/Nginx, cấu hình môi trường production, tên miền/HTTPS, lưu trữ upload và sao lưu/khôi phục dữ liệu.
-- [ ] Rà soát và chốt các thay đổi Git. Hiện còn nhiều file chỉnh sửa/chưa được theo dõi; chưa có xác nhận commit/phát hành cho toàn bộ phần đã làm.
-
-### Ưu tiên 4 — Đồng bộ tài liệu
-
-- [ ] Cập nhật checklist cũ trong `tasks/task.md`; nhiều ô cũ chưa đánh dấu dù tính năng đã có.
-- [ ] Sửa hướng dẫn cũ còn mô tả `/courses` là trang công khai hoặc đặt thủ công/chuyển lớp tại `/registrations`.
-- [ ] Đồng bộ mô tả quyền chỉnh Thanh toán tại `/registrations` và hiện trạng concept Landing Page trong tài liệu yêu cầu.
-
-## 8. Checklist nghiệm thu thao tác chính
-
-Các ô dưới đây dành cho lượt nghiệm thu tiếp theo, không phải đánh dấu tính năng chưa được viết.
-
-- [ ] Mở `/` khi chưa đăng nhập → được yêu cầu đăng nhập.
-- [ ] Quản trị mở `/courses`, chọn **Quản lý học viên** → vào đúng lớp và đúng sĩ số.
-- [ ] Tạo học viên thủ công/vét → xuất hiện trong lớp và trang kiểm tra đăng ký, không vượt sĩ số.
-- [ ] Chuyển một học viên hợp lệ → lớp cũ giảm/lớp mới tăng; giữ trạng thái; có lịch sử.
-- [ ] Duyệt/từ chối tại `/registrations`; từ chối bắt buộc nhập lý do.
-- [ ] Quản trị/Kế toán chỉnh Thanh toán tại `/registrations`; Quản lý lớp không chỉnh được.
-- [ ] Xuất Excel, sửa dữ liệu hợp quyền, kiểm tra file và nhập lại đúng lớp; thử một file lỗi để xác nhận không lưu một phần.
-- [ ] Cập nhật GXN/GCN, mã hóa đơn và phương thức gửi theo đúng vai trò.
-- [ ] Chọn đủ 5 khóa tại `/course-links`; sao chép/mở link đúng khóa và đúng kênh; không có danh sách link từng lớp.
-- [ ] Sửa cấu hình ngân hàng → lưu đúng và hiển thị đúng ở bước thanh toán.
-- [ ] Giao lớp cho Quản lý lớp → chỉ xem/thao tác trong phạm vi đó; khóa tài khoản → phiên không còn dùng được.
-- [ ] Đăng ký trực tuyến tới Bước 3 khi lớp gần đầy → giữ đúng chỗ; gửi lại không tạo trùng; từ chối/hủy giải phóng chỗ theo quy tắc hiện tại.
-
-## 9. Mã nguồn và tài liệu dùng để đối chiếu
-
-| Nội dung | Nơi kiểm tra |
+| Kiểm tra | Kết quả / giới hạn |
 | --- | --- |
-| Yêu cầu cập nhật | [Feature_Cap_Nhat_Quan_Ly_Hoc_Vien_Va_Landing_Page.md](features/Feature_Cap_Nhat_Quan_Ly_Hoc_Vien_Va_Landing_Page.md) |
-| Checklist cũ | [tasks/task.md](tasks/task.md) |
-| Dữ liệu và migration | `ttcc-app/prisma/schema.prisma`, `ttcc-app/prisma/migrations/` |
-| Giữ sĩ số và chống trùng | `ttcc-app/src/lib/admissions.ts` |
-| Chuyển lớp | `ttcc-app/src/lib/transfers.ts` |
-| Excel | `ttcc-app/src/lib/excel.ts`, `ttcc-app/src/app/api/admin/excel/route.ts` |
-| Phiên và quyền | `ttcc-app/src/lib/auth.ts`, `permissions.ts`, `ttcc-app/src/app/actions/users.ts` |
-| Thao tác hồ sơ/thanh toán/chứng từ | `ttcc-app/src/app/actions/adminRegistration.ts` |
-| Các màn hình quản trị | `ttcc-app/src/app/(admin)/` |
-| Landing Page và lớp liên quan | `ttcc-app/src/app/(user)/components/ProgramLanding.tsx`, `RelatedCourses.tsx` |
-| Email | `ttcc-app/src/lib/mailer.ts` và các điểm gọi trong Server Actions |
-| Kiểm thử tự động | `ttcc-app/tests/management.integration.ts`, `http.smoke.ts` |
+| Build + TypeScript + lint | Đạt; web/ops image Alpine và standalone smoke đạt |
+| Giao diện | 44/44 regression UI và 5/5 HTTPS SSO UI bằng provider giả lập đạt |
+| SSO integration | PKCE/state/nonce/chữ ký, ID bất biến, mã hóa token, grant/active, lease/fail-closed, webhook/thu hồi, duplicate và race logout/callback đạt |
+| Nghiệp vụ/security | 8 bộ integration trước SSO đạt; các bộ security/account/concurrency chạy lại sau bản vá đạt |
+| Chỗ cuối | 64 yêu cầu cùng tranh một chỗ: đúng 1 được nhận; retry, CCCD trùng, chuyển/khôi phục/chỉnh sĩ số vẫn giữ ràng buộc |
+| Database | PostgreSQL local 16.13 Alpine; backup/restore trước nâng cấp 8 → 9 migration đạt; fingerprint User/Registration cũ giữ nguyên |
+| Docker | UID 1000, ghi private uploads, cookie/header/route guards, worker heartbeat/SIGTERM, không có .env/runtime secrets trong image đạt |
+| Compose mới | Kiểm tra render local/default/production; kết nối thử DNS/HTTP alias edu-app với các mạng Docker tạm, gồm DB/proxy trùng và khác nhau; Nginx syntax kiểm tra trên mạng tạm |
 
-Báo cáo phản ánh mã đang có trong workspace, bao gồm thay đổi chưa commit; commit nền lúc rà soát: `12ff177`. Các lần cập nhật sau nên ghi ngày kiểm tra, hạng mục thay đổi, kết quả thực tế và việc còn lại để tránh đánh đồng “đã viết” với “đã nghiệm thu”.
+Lần tách Compose này chỉ thay cấu hình và tài liệu cùng kiểm tra khớp host/port; không chạy lại toàn bộ ứng dụng hay coi các kiểm thử trước là nghiệm thu máy chủ thật. Kết quả chi tiết đợt cấu hình nằm trong `harness/build-log.md`.
+
+## 5. Việc cần làm trước mở production
+
+1. Điền bí mật thật trong `.env.production`: hai URL/role database, Client Secret, API Token đọc users/events, Bearer webhook, khóa mã hóa SSO/OTP và SMTP_PASS. Không gửi qua chat hoặc commit.
+2. Xác nhận DB riêng/role quyền hạn, DNS `cap-cuu-115-db` và cả DB/Nginx đang thuộc mạng server đã chốt. Dùng đúng file production và sao lưu DB/uploads trước migration.
+3. Chạy migrate deploy bằng role owner, cấp quyền bảng cho runtime, preflight và đồng bộ SSO dry-run rồi apply. Đăng nhập nlhson và cấp quyền cho người dùng khác.
+4. Đặt provider edu Invalidation Flow là `default-invalidation-flow` có User Logout stage; các app khác tham gia SLO. Nghiệm thu thật logout từ edu/SSO/app khác, tab cũ, khóa/mở khóa tài khoản và webhook retry.
+5. Ghép mẫu Nginx, kiểm tra chứng thư/domain/HTTPS/cookie/header, upstream `edu-app:3000`, webhook/back-channel và private upload/download theo quyền. Reload Nginx khi app mới healthy.
+6. Gửi OTP học viên tới hộp thư thật, kiểm tra worker/outbox; kiểm tra camera mobile HTTPS trên thiết bị thật.
+7. Cấu hình backup định kỳ cả DB/uploads, restore thử trên server/staging, retention, dung lượng, cảnh báo 5xx/DB/outbox/SSO/chứng thư. Chốt release tag, commit và rollback image/schema tương thích.
+
+Cài đặt/cấu hình local đã được kiểm thử không thay thế các bước trên; chưa có nghiệm thu SMTP, chứng thư, network/DB hay tài khoản thật trên máy chủ.
+
+## 6. Các điểm nghiệp vụ vẫn cần chốt
+
+- “Cùng khóa” trong chuyển lớp hiện theo chương trình và học phí; cần chốt thêm điều kiện courseBatch nếu muốn. Không chuyển hồ sơ bị từ chối/hủy, đã có chứng từ hoặc lớp nguồn kết thúc theo quy tắc hiện có.
+- Chưa tự động hết hạn giữ chỗ khi chưa thanh toán; không được coi là đã có cơ chế giải phóng chỗ theo thời gian.
+- Landing theo chương trình còn dùng mẫu chung; nội dung/concept cuối cần đơn vị sử dụng duyệt.
+- Các bộ lọc/trạng thái gửi GCN bổ sung và quy trình bưu gửi (mã/ngày/người nhận) chưa được coi là hoàn thiện theo mọi đề xuất.
+- Email lý do từ chối, xác nhận thủ công/vét và nhắc lịch tự động vẫn cần chốt phạm vi, điểm gọi/lịch chạy và nghiệm thu; worker OTP không chứng minh các luồng này đã xong.
+- Antivirus/CDR tài liệu chuyên dụng và các yêu cầu retention cần phương án vận hành riêng.
+
+## 7. Tài liệu đối chiếu
+
+- [Khởi tạo máy chủ thật với edu/edu_user](HUONG_DAN_KHOI_TAO_MAY_CHU.md): file env ngoài repo, quyền DB, backup/migration và đồng bộ SSO.
+- [Hướng dẫn local/production, SSO và migration](../README.md).
+- [Checklist phát hành](plan_v2/Ho_so_ke_hoach_nang_cap_quan_ly_dao_tao_2026_v2/11_CHECKLIST_RELEASE.md): các mục production chỉ đánh dấu sau nghiệm thu thật.
+- [Nhật ký thực hiện/kiểm thử](../harness/build-log.md).
+- `prisma/schema.prisma`, `prisma/migrations/`; `src/lib/admissions.ts`, `src/lib/permissions.ts`, `src/lib/sso-*.ts`; `tests/` và `scripts/` ở repository root.
+
+Báo cáo này thay snapshot 17/10 từng bị chặn bởi PostgreSQL. Sự cố kết nối local đó đã được xử lý; vẫn giữ tách bạch kết quả local với phát hành production. Các chỉnh sửa workspace chưa được coi là đã commit/phát hành.

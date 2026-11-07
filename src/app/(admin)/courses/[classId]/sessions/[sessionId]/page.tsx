@@ -1,3 +1,4 @@
+import { assertPagePermission } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { ClipboardCheck } from "lucide-react";
 import prisma from "@/lib/prisma";
@@ -13,6 +14,7 @@ export default async function AttendancePage({
   params: Promise<{ classId: string; sessionId: string }>;
 }) {
   const actor = await pageUser(["ADMIN", "CLASS_MANAGER"]);
+  assertPagePermission(actor, "attendance.manage");
   const { classId, sessionId } = await params;
   const session = await prisma.classSession.findFirst({
     where: { id: sessionId, classId, class: classScope(actor) },
@@ -43,7 +45,7 @@ export default async function AttendancePage({
         title={session.title}
         description={`${session.class.code} · ${sessionTimeLabel(session.startsAt)} – ${sessionTimeLabel(session.endsAt)} · ${session.location || session.class.name}`}
         icon={ClipboardCheck}
-        parent={{ href: `/courses/${classId}/sessions`, label: "Các buổi học" }}
+        parent={{ href: `/courses/${classId}?tab=sessions`, label: "Các buổi học" }}
       />
       <AttendanceBoard
         sessionId={sessionId}

@@ -57,6 +57,7 @@ const schema = z.object({
   targetAudiences: z.array(z.string()),
   certificateType: z.enum(["CERTIFICATE", "CONFIRMATION"]),
   status: z.enum(["OPEN", "FULL", "DONE"]),
+  managerId: z.string(),
 });
 type Values = z.infer<typeof schema>;
 const dateValue = (date: Date | null | undefined) =>
@@ -66,8 +67,10 @@ export function ClassForm({
   course,
   onSave,
   onCancel,
+  managers,
 }: {
   course?: Class | null;
+  managers?: { id: string; username: string }[];
   onSave: (form: FormData) => Promise<{ success: boolean; error?: string }>;
   onCancel: () => void;
 }) {
@@ -80,6 +83,7 @@ export function ClassForm({
   } = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: {
+      managerId: course?.managerId ?? "",
       code: course?.code ?? "",
       name: course?.name ?? "",
       courseType: course?.courseType ?? "COMMUNITY_FIRST_AID",
@@ -101,7 +105,7 @@ export function ClassForm({
   async function submit(values: Values) {
     const form = new FormData();
     for (const [key, value] of Object.entries(values)) {
-      if (key === "targetAudiences") continue;
+      if (key === "targetAudiences" || (key === "managerId" && !managers)) continue;
       form.set(key, String(value));
     }
     values.targetAudiences.forEach((value) =>
@@ -120,7 +124,7 @@ export function ClassForm({
   const textFields: {
     name: keyof Omit<
       Values,
-      "targetAudiences" | "courseType" | "certificateType" | "status"
+      "targetAudiences" | "courseType" | "certificateType" | "status" | "managerId"
     >;
     label: string;
     type?: string;
@@ -222,6 +226,14 @@ export function ClassForm({
             </ControlledSelectField>
             <FieldError errors={[errors.certificateType]} />
           </Field>
+          {managers && <Field className="gap-2">
+            <FieldLabel htmlFor="class-managerId">Người phụ trách</FieldLabel>
+            <ControlledSelectField id="class-managerId" name="managerId" control={control}>
+              <SelectOption value="">Chưa phân công</SelectOption>
+              {managers.map(manager => <SelectOption key={manager.id} value={manager.id}>{manager.username}</SelectOption>)}
+            </ControlledSelectField>
+            <p className="text-xs text-muted-foreground">Chỉ người được chọn có quyền quản lý lớp này.</p>
+          </Field>}
           {course && (
             <Field className="gap-2">
               <FieldLabel htmlFor="class-status">Trạng thái lớp học</FieldLabel>
@@ -273,8 +285,8 @@ export function ClassForm({
             {isSubmitting
               ? "Đang lưu…"
               : course
-                ? "Lưu thay đổi"
-                : "Lưu Khóa Học"}
+                ? "Lưu"
+                : "Tạo lớp"}
           </Button>
         </footer>
       </fieldset>

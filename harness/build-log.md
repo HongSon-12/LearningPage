@@ -366,3 +366,147 @@ Changes: scoped admin font tokens main16/support14/title20/stat32, including por
 Validation: build/type/private-artifact trace gate and lint0warnings PASS. Full Playwright25/25 PASS1.2m (24prior plus hover/type regression). Final production build and4layout cases PASS12.2s after intrinsic width adjustment. Actual per-cell/header background comparison, row geometry, button bounds/border/size,title/red delete,desktop/mobile sticky behavior and typography assertions; screenshots reviewed .local/ui-layout/hover-*.png.
 Data preservation and fixture cleanup verified by existing read-only scripts; no real user session/history modified. No branch/commit/container deployment. Previous dirty work retained. SMTP and other earlier operational gates unchanged.
 Rollback only phase02g CSS/component/display hunks, no data rollback needed.
+
+
+## 2026-10-17 — Phase02h: community landing scroll rhythm and review
+User requested help getting to the next section when scrolling through a large gap, plus a citizen-perspective critique and suggestions for /hocsocapcuu. Implemented scroll/display changes only; marketing strategy/copy proposals remain recommendations in the response.
+Root cause: parent128px section spacing +80px hero bottom padding +48px next top padding yielded256px between visible blocks. Reduced parent spacing48pxmobile/64desktop,hero bottom0,next top16/24 =>64/88px. Tightened heading-to-cards spacing and module/pricing outer padding. Explicit Xem tiếp anchor below hero photo provides smooth native navigation; existing global96px scroll-padding clears sticky80px navbar. Found initial double192px offset from adding local scroll-margin; removed local duplicate. No wheel/touch hijacking or mandatory section snapping. Reveals trigger120px early,y16/duration350ms; MotionConfig respects reduced motion and image autoplay pauses under that preference. New helper keyboard accessible44px; carousel labels Vietnamese.
+Validation: build/type/private artifact gate and lint PASS; new landing.spec2/2 PASS11.2s at390/1440. Checks64/88gap,next anchor/URL/heading below header,native180pxwheel delta,program/pricing hash links,no horizontal overflow,keyboard reduced-motion/instant scroll and visible content. Tests block optional tracking POSTs/external requests and create no fixtures. Screenshots .local/ui-landing hero/transition/modules/pricing visually reviewed. Existing business copy/fees/curriculum/claims were not rewritten. No dependencies/schema/deploy/commit/branch.
+Review findings: strong115brand and genuine-looking practice image showing ordinary learners, but long institution-led hero/certificate emphasis; lengthy fear sections before practical outcomes; no beginner reassurance/FAQ,optional evidence from instructor/learner testimony absent; hardcoded400k/07:30-11:30/Quận1 while actual class details vary and footer differs; one-step promise conflicts with3-step wizard. Community CTA sends to all-program list rather than community prefilter. Proof claims1000+/25years/recognition/70%practice require institutional support. AHA CPR survival multiplier must retain cardiac-arrest/immediate-CPR context. Sources consulted: https://www.nngroup.com/articles/scrolljacking-101/ and https://cpr.heart.org/en/resources/cpr-facts-and-stats . No statistics invented and no real email sent.
+
+
+## 2026-10-17 — Phase02i: role permissions, separate administration pages and layout
+User requested account/permission split, class assignments under Courses, fixed payment syntax, less cramped topbar, redundant dashboard shortcut removal, public width/motion fixes. Separate `/users`, `/permissions`, `/courses/assignments`; protected ADMIN, editable two-role policies within prior business ceilings, dependency checkboxes, optimistic concurrency, server/page/menu/button checks and fresh authority for writes/private data. Added two RBAC tables, exact legacy defaults; local migration deployed after verified backup/restore rehearsal. User explicitly approved page/menu gates after automatic review rejected broader commands; accepted narrower implementation only subtracts rights and preserves class scope. No cross-role grant expansion.
+UI:80px admin topbar; removed four dashboard shortcuts; fixed `{CLASS_CODE} {NAME}` transfer content; public max1440px; deterministic hydration under reduced motion and repeatable up/down reveals.
+Validation: tsc/lint0warnings/production+private-artifact gates PASS;6domain suites PASS; isolated RBAC integration PASS incl stale file/session/Excel revocation; isolated RBAC browser1/1 PASS8.3s; final full Playwright27/27 PASS1.3m. Screenshot review public hero and protected permissions completed.8registrations/8students/4privatefilehashes preserved;7legacyprofiles needreview,0unlinked/orphan. Fixture checks pass. No real policies changed in testing, no branch/commit/deployment. SMTP/physical camera QA prior operational limits remain. Details and rollback: harness/build/phase-02i-rbac-layout.md.
+
+
+## 2026-10-17 — Phase02j: class workspace, inline assignment and clearer controls
+User requested class management workflow redesign, assignment inside class form, horizontal sessions, light input backgrounds, short labels and centered/divided tables; reported Reduced Motion warning. Implemented `/courses` lifecycle filters, manager/session indicators, compact primary row actions; `/courses/[id]` shared Học viên/Buổi học/Chứng từ/Thông tin navigation and compact summary. Documents view adds invoice, GCN/GXN, delivery columns and missing-work filters; updates open on document fields with existing accountant/manager ceilings. Class form saves assignment+class atomically via shared active-ADMIN transaction helper; removed separate assignment UI, old path redirects. Session rows horizontal desktop/responsive mobile. Shortened sidebar and action labels.1px column dividers and centered headings. Removed OS-dark media input fills from light interface.
+Motion warning traced to library useReducedMotion development hook; replaced with live matchMedia/useSyncExternalStore with deterministic server snapshot, preserves accessibility and hydration behavior. No dependency/schema/migration/deploy/commit.
+Validation: tsc/lint0warnings/build+private-artifact gate PASS, attendance domain/RBAC integration PASS, isolated RBAC browser1/1PASS7.5s. Full browser29/29PASS1.4m, then final affected suites16/16PASS51.7s after compact layout changes. Tests include create+assign, reassignment/demotion safety, document roles/filter/save, dark-device white fields, live motion, horizontal session layout, table borders/header centering, no page overflow. Screenshots reviewed desktop/mobile.8registrations/8students/4filehashes preserved;7reviews unchanged;0unlinked/orphans/fixtures. Existing SMTP/device deployment limits remain. Details: harness/build/phase-02j-class-workspace.md.
+
+
+## 2026-10-17 — Remove table vertical separators
+User prefers centered headers with horizontal separators only. Removed vertical borders from shared TableHead/TableCell and management CSS, retained centered headings and row borders. Updated existing layout expectation to0px. Focused style checks and lint on changed TSX/test files only; no full build or full suite for this display-only edit. User requests targeted checks for subsequent changes.
+
+
+## 2026-10-17 — Phase02k: 30/70 master/detail and persistent class overview
+User requested 3/7 selection/editing for Users and Permissions, header/body alignment, class filter layout, and only panel changes below class navigation. Implemented inline account editor beside searchable/filterable user list, role selector beside existing permission editor. Protected authority logic unchanged. Tables align titles/content per column (text left,status/count center,actions right), removed sort-button icon padding; no vertical lines. Class filters use container grid with190px date fields.
+Class shared layout preserves overview DOM/text/geometry and4navigation buttons across Học viên/Buổi học/Chứng từ/Thông tin; focused attendance retains its own page. Child pages still enforce fresh auth/scope. Overview receives aggregates only, omits protected metrics without registration rights. Học viên hides payment column; Chứng từ includes payment/invoice/GCN-GXN/delivery and no registration delete action.
+Validation scoped to changes per user: production/types/private-artifact gate and targeted lint pass; isolated RBAC browser1/1PASS6.8s;7targetedUIcases pass after correct transition/inline-save readiness; final3affectedchecks pass after visual refinements. Exact same overview DOM retained across4tabs. Tested30/70width,inlineaccountCRUD/role safeguards,filters/columns/tablehover,sessionroutes and document field rights.8registrations/8students/4filehashes preserved;7reviewprofiles unchanged;0unlinked/orphan/fixtures. No full suite, no schema/dependency/deployment/commit. Details: harness/build/phase-02k-master-detail-class-layout.md.
+
+
+## Phase02l — Email tài khoản, vai trò mới và Tổng quan (17/10/2026)
+- Bỏ nút Làm mới ở Hồ sơ học viên; giữ nguyên tìm kiếm và bộ lọc.
+- Tài khoản có email khôi phục riêng, chuẩn hóa chữ thường và chống trùng. Giữ bố cục3/7, chọn được các vai trò mới. Các chốt tự khóa/hạ quyền, quản trị cuối cùng, lớp đang phân công và thu hồi phiên vẫn giữ nguyên.
+- Thêm vai trò có tên riêng theo nền nghiệp vụ Quản lý lớp/Kế toán; quyền dạng ô chọn, kiểm tra phụ thuộc và giới hạn nghiệp vụ ở máy chủ. Nền nghiệp vụ không đổi sau khi tạo; ADMIN bảo vệ. Kiểm tra phiên bản khi lưu, quyền có hiệu lực từ yêu cầu tiếp theo, không lấy quyền cũ từ phiên đăng nhập.
+- Mọi tài khoản hoạt động được xem Tổng quan. Thống kê/hồ sơ theo quyền và phạm vi lớp; quản lý chỉ thấy lớp được giao. Tài khoản chưa có quyền nghiệp vụ thấy lời chào/hướng dẫn; thống kê truy cập toàn hệ thống dành cho ADMIN. Dashboard là quyền luôn có trong trình chọn.
+- Thêm Quên mật khẩu ở đăng nhập: email → mã6số → mật khẩu mới và xác nhận. Phản hồi chung cho email có/không tồn tại; HMAC domain riêng, mã10phút/một lần, tối đa5lần sai, giới hạn theo email/IP/challenge. Không lưu mã rõ; đổi email/tài khoản hoặc yêu cầu mã mới vô hiệu mã cũ; đổi mật khẩu thu hồi phiên và xóa khóa đăng nhập cũ. Có thư thông báo sau khi đổi, không tự đăng nhập.
+- Email dùng outbox có lease, tối đa5lần gửi và lùi thời gian khi lỗi; after thử gửi sau phản hồi, lệnh email:search chạy cả hàng đợi tra cứu và khôi phục. SMTP chưa cấu hình ở môi trường hiện tại: chưa xác minh gửi đến hộp thư thật.
+- Migration20261017000400 chỉ bổ sung cột/bảng/index/FK, không xóa hồ sơ hiện có. Đã kiểm thử toàn bộ migrations trên schema cô lập, sao lưu và phục hồi thử trước migrate deploy; không resetDB. Bản sao lưu có8đăng ký/6migration trước thay đổi, schema hiện có7migration.
+
+### Validation
+- test:account-access PASS: email duy nhất, vai trò mới/phân công/phạm vi/thu hồi/concurrent version, Tổng quan luôn có, phản hồi khôi phục không lộ tồn tại, hashOTP/hết hạn/một lần/5lần sai/retrySMTP, resetpassword/session/login-lock, chống replay đồng thời, vô hiệu khi đổiemail/khóaTK. Dùng sender giả, không gửi email thật.
+- test:rbac PASS trong schema cô lập: quyền cũ, phụ thuộc và chặn quyền ngoài phạm vi vẫn đúng.
+- Build thành công, TypeScript và targeted ESLint đạt; private-artifact gate đạt.
+- Browser cô lập2/2PASS10.8s: trang/menu/action cũ sau thu hồi; tạo vai trò, email, Tổng quan theo phạm vi, trang reset và đăng xuất phiên. Review ảnh1440/390px, không tràn trang.
+- Targeted browser2/2PASS9.3s: tạo/sửaTK/đổi vai trò/password/khóa và tìm/lọc/phân trang Hồ sơ học viên. Không chạy toàn bộsuite.
+- Kiểm tra bảo toàn8đăngký/8hồsơ/4hashfile riêng tư,7hồsơcầnđốichiếu,0unlinked/orphan/fixture.
+
+### Rollback / vận hành
+Giữ các bảng/cột mới nếu tạm quay UI về phiên bản cũ; không xóa dữ liệu email/vai trò/reset để rollback. Cần cấu hình SMTP thật và chạy worker bền vững để có retry khi tiến trình bị dừng. Không thay đổi file định danh, thông tin thanh toán hoặc các hồ sơ thật.
+
+
+## Phase02m — Khôi phục hiệu ứng cuộn /hocsocapcuu (18/10/2026)
+- Hiệu ứng bắt đầu khi nội dung vào vùng nhìn thấy, thay điểm kích hoạt sớm120px ngoài màn hình bằng vùng bên trong (trừ80pxnavbar/48pxđáy, threshold12%).
+- Tái sử dụng cấu hình reveal cho13vịtrí; nền animate=hidden và whileInView=visible giúp lặp lại khi rời vùng nhìn rồi cuộn về từ cả hai hướng, cũng cập nhật đúng khi đổi chế độ chuyển động.
+- Chế độ thường hiện dần/trượt28px trong0.55s. Reduced Motion hiện dần0.7→1 trong0.18s, không dịch chuyển; giữ dừng tự chạy ảnh theo tùy chọn thiết bị. Không thêm can thiệp wheel hoặc nhảy tự động giữa mục.
+- Kiểm thử trước đây đọc opacity của h2 tĩnh, chưa chứng minh khối cha thực sự chuyển động. Thêm đo từng khung hình của wrapper khi wheel xuống/lên ở390/1440px, cho cả hai chế độ; kiểm tra cả opacity và transform.
+- Validation: build+TypeScript/private-artifact gate PASS; targeted lint PASS;5/5landing browser tests PASS25.6s, gồm neo trang, khoảng cách/navbar, nativewheel, cảnh báo hydration/reducedmotion, đổi tùy chọn trực tiếp và chuyển động hai chiều. Không chạy các bộ kiểm thử khác, không đổi dữ liệu.
+
+
+## Phase02n — Chụp/tải tài liệu và chuyển động theo cuộn (18/10/2026)
+- Ba vị trí CCCD/văn bằng (hoặc bằng lái)/biên lai trong đăng ký dùng DocumentUpload chung. Bấm ô mở hai lựa chọn Chụp ảnh/Tải lên; ghi JPG,JPEG,PNG,WebP,PDF và5MB/file ngay tại ô và hộp chọn. Lỗi hiển thị cạnh trường, không bật alert upload. Giữ kiểm tra bắt buộc của chương trình chuyên môn ở cả form và máy chủ.
+- Điện thoại dùng inputcapture rear camera; máy tính có xem trước getUserMedia và chụp JPEG tối đa1920px. Đóng/chụp/unmount ngắt stream; generation guard ngắt stream trả về muộn sau khi đóng. Lỗi/từ chối quyền vẫn cho tải file. Camera thật/nativecapture cần QA thiết bị thực; ca trình duyệt dùng canvasstream giả lập.
+- Giữ boundedmultipart/origin/rate/ownership/kind/class-scope/private-download. Dùng sharp0.35.3 sẵn có, khai báo dependency trực tiếp; ảnh mới được giải mã đầy đủ, giới hạn25MP, tự xoay, tạo lại bỏ EXIF/GPS/ICC, kiểm tra5MB sau xử lý và hash nội dung đã chuẩn hóa. Chặn giả MIME/đuôi, ảnhhỏng, doubleextension/path, quábyte/pixel. Không chuyển đổi ảnh cũ. PDF giữ kiểm tra hiện có và tải xuống dạng attachment; chưa có antivirus/CDR chuyên dụng, không tuyên bố quét virus.
+- ScrollReveal dùng useScroll/useSpring cho y28→−28 theo vị trí cuộn, cùng fade vào/ra. Do đó khối vẫn chuyển động khi đang còn trong viewport, thay vì chỉ chạy lúc re-enter. ReducedMotion vẫn chỉ fade. Nút Hiệu ứng cuộn dưới hero cho phép bật chuyển động theo lựa chọn rõ ràng của người dùng, ghi nhớ ở localStorage; vẫn chạy trong phiên nếu storage bị chặn.
+- Đã xác nhận dev3001 chạy đúng thư mục root và HTTP có nút hiệu ứng mới. Công cụ CUA trên desktop lỗi khởi tạo sandbox nên không đọc được tab hiện tại của người dùng; không đổi thiết lập hệ điều hành/trình duyệt của họ.
+
+### Validation
+- Build+TypeScript/private-artifact gate và targeted ESLint PASS.
+- tests/upload-images.test.ts PASS: decode/rotation/EXIF+ICC removal,3codec, ảnhhỏng/giả/mismatch/double-extension/path/bytes/pixel limits.
+-6landing tests PASS trong lượt9cases: nativewheel/neo/navbar,2hướng390/1440px, giảmchuyểnđộng/cậpnhậttrựctiếp, và continuousscroll trong viewport desktop1440x1100 cùng opt-in lưuqua reload.
+-3upload HTTP/browser cases PASS11.5s sau khi thay PNGfixture bị libpng xác nhận hỏng bằng PNG hợp lệ: ownership/private download/sessionrevocation; wizard binds identity+receipt; chooser/types/invalidfile/camera preview/capture/streamstop/permissiondenial/fallbackupload/390+1440px. Không hạ mức kiểm tra file để nhận ảnh mẫu hỏng; chỉ sửa fixture ảnh ở3testfiles.
+- Review ảnh hộp chọn và đường fallback camera trên390px. Chỉ chạy các ca liên quan, không chạy toàn bộsuite.
+-8đăngký/8studentprofiles và4privatefilehash được bảo toàn;7hồsơ cần đối chiếu giữ nguyên,0unlinked/orphan/fixture.
+
+### Rollback
+Chỉ hoàn tác UI/hook/normalization hunks của phase này; không có migration và không thay nội dung file cũ. Giữ các giới hạn/quyền tải file cũ nếu tạm bỏ phần chuẩn hóa ảnh.
+
+References: https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html ; https://sharp.pixelplumbing.com/api-output/
+
+
+## Phase02o — Luôn bật hiệu ứng, bỏ nút điều chỉnh (18/10/2026)
+Theo yêu cầu mới, bỏ nút Giảm/Bật hiệu ứng và chú thích giảm chuyển động. Landing dùng MotionConfig never, ScrollReveal luôn fade + chuyển động theo scroll; ảnh hero tự chạy. Bỏ hook use-landing-motion riêng của trang, không đọc lựa chọn localStorage cũ nên máy từng lưu reduced cũng luôn bật. Giữ CSS ưu tiên thiết bị cho hành vi neo trang. Không đổi tải ảnh, quyền hoặc dữ liệu.
+Validation: build+TypeScript/private-artifact gate, targeted lint PASS; hai ca browser liên quan xác nhận replay2hướng390/1440px trong chế độ thiết bịreduce và chuyển độngdesktop vẫn bật sau reload dù localStorage lưu reduced, không còn nút điều chỉnh. Không chạy toàn bộsuite.
+
+
+## Phase02p — Menu/tài khoản cá nhân và sửa Docker Nginx (18/10/2026)
+- Menu cuối sidebar theo mẫu, chỉ Tài khoản/Đăng xuất; tên/email và avatar viết tắt. Mobile có menu nhanh góc trên và menu trong sidebar. Giữ tiêu đề chính và điều hướng. Tài khoản quản trị hệ thống ở/users giữ nguyên chức năng cũ.
+- /account cho mọi tài khoản đăng nhập, kể cả customrole không có quyền nghiệp vụ. Chỉ nạp username/email của chính user; vai trò hiển thị đọc. Tự đổi email hoặc mật khẩu, cần xác nhận mật khẩu hiện tại; email chuẩn hóa/duy nhất, xác nhận mật khẩu và giới hạn10ký tự/72byte. Lưu thay đổi thu hồi toàn bộ phiên của chính user và các mã reset, yêu cầu đăng nhập lại. No-op giữ phiên. Không nhận id/username/role/active trong payload; binding sessionhash↔actorid và kiểm tra lại phiên/active/version trong transaction ngăn stale/race/cross-user. Rate10/15phút và audit không lưu email/mật khẩu.
+- Dockerfile.nginx COPY nginx.conf vào image; Compose build dịch vụ nginx, bỏ file bindmount ./nginx.conf gây lỗi OCI trên Windows/WSL. Không đổi cấu hình proxy/rate/origin hay các volume dữ liệu. Đã build riêng learning-nginx và chạy container --rm --network none --add-host app:127.0.0.1 nginx -t: entrypoint và syntax PASS, không có mounterror. dockercomposeconfig--quiet PASS. Không khởi động lại hoặc triển khai cả stack; khi chạy lại dùng docker compose up -d --build.
+
+### Validation
+Build+TypeScript/private-artifact gate và targeted ESLint PASS. tests/self-account.integration.ts dùng schema cô lập PASS: ownership/session/currentpassword, allowlist, emailunique/normalize, no-op, unchangedrole/status/name, passwordrules, sessions/resetcodes revocation, race/stale/disabled denial. Hai browserflowsPASS (desktopcase trong lượt2case9.1s, mobilecase final6.0s): role không quyền quản lý tự sửaemail, menu2mục/logout; mobileđổipassword/chốtxácnhận, phiênkhácbịthu hồi, passwordcũsai/newđúng. Đã sửa locators test cho nhãn đăngnhập códấubắtbuộc và tránh route-announcer khi tìm alert; không có thay đổiapp do các lỗi locator. Review ảnh menu desktop/mobile và accountform390px. Chỉ chạy các ca liên quan.
+Bảo toàn8đăngký/8studentprofiles/4privatefilehash;7hồsơcầnđốichiếu,0unlinked/orphan/fixture. Không có migration hay sửa dữ liệu thật.
+
+
+## Phase02q — Compose identity and obsolete folder cleanup (18/10/2026)
+Root cause: moving Compose from Learning/ttcc-app to Learning changed the inferred project name to learning; hard-coded container names collided with existing ttcc-app services. Added top-level name:ttcc-app. Config JSON checks resolve pgdata/uploads to ttcc-app_pgdata/ttcc-app_uploads and discover existing service labels. docker compose up --no-start --no-deps --no-recreate postgres PASS, original Postgres ID1ed85eabcc55… and pgdata volume unchanged; kept its stopped state as observed during this turn.
+Rebuilt/recreated only nginx with --no-start --no-deps, removing the old directory bind and updating its working directory label to Learning. Inspected legacy Learning/ttcc-app: only nginx.conf emptydirectory remained, no source/config/data files or symlinks. Removed only those two empty directories with rmdir after resolving paths under workspace; Docker-created root ownership required narrowly scoped WSLroot invocation. Verified old folder absent, nginx mounts empty.
+Compose initialized the previously missing uploads named volume. Copied4private documents from .local/uploads to ttcc-app_uploads using a temporary network-disabled helper; check all destination conflicts before writing, no overwrite of different content, SHA256 verified4/4. Local originals retained. No database mutation/migration/reset or volume deletion; no full app startup or deployment. Compose config and git diff checks are the relevant checks for these configuration-only changes; no unrelated application tests run.
+
+
+## Phase03a — SSO production và trạng thái kiểm tra local (07/11/2026)
+
+- Domain edu.115.org.vn; đăng nhập OIDC qua SSO 115 (Confidential, PKCE S256/state/nonce/RS256/JWKS); không nhập/đổi mật khẩu nhân sự tại edu production. Token server được mã hóa; không lưu refresh token.
+- Đồng bộ users có phân trang/dry-run/apply; nlhson khởi tạo ADMIN, người mới khác chờ edu grant; effective active = SSO active AND appAccessGranted. Không dùng group/role SSO để nâng quyền và không tự nối local identity theo tên/email. Sub phải khớp UID/ID bất biến.
+- Webhook JSON eventId + Authorization Bearer: đọc event và tài khoản đích qua API; event.user là actor, không dùng để chọn tài khoản đích. Có dedupe/lease/retry/stale protection. Back-channel xác minh JWT và lưu tombstone chống replay/callback muộn. Lease/introspection/fresh DB authz và guard nhiều tab/focus, chặn stale session khi không xác minh được.
+- Phải cấu hình default-invalidation-flow có User Logout stage ở provider edu để SLO kết thúc phiên trung tâm; phạm vi sid/thiết bị theo chính sách SSO. Tài khoản thật chưa đồng bộ và SMTP/HTTPS/SLO thật chưa nghiệm thu vì người triển khai tự điền secrets.
+- Bằng chứng đợt SSO: build host/2 image Alpine, tsc/lint/private-artifact gate PASS; 44/44 regression UI, 5/5 HTTPS SSO UI, integration SSO PASS; audit production 0. Docker smoke kiểm tra import/guards/config/Prisma schema/non-root/upload/no-env-in-image bằng cấu hình giả offline PASS.
+- Local DB backup/restore trước migration SSO đạt; 8 → 9 migrations, fingerprint User/Registration cũ giữ nguyên. Không reset DB hoặc phát hành lên máy chủ.
+
+## Phase03b — Tách Compose local/production và mạng máy chủ (07/11/2026)
+
+- docker-compose.local.yml là cấu hình local đầy đủ; docker-compose.yml include local, giữ name ttcc-app, các container và volume ttcc-app_pgdata/ttcc-app_uploads. App standalone dùng AUTH_MODE=local; LOCAL_APP_ORIGIN cho Nginx local tách khỏi APP_ORIGIN localhost:3001 của pnpm dev. Nginx/PG chỉ publish loopback.
+- .env local đặt rõ AUTH_MODE=local/APP_ORIGIN=http://localhost:3001, giữ các giá trị khác. Có deploy/local.env.example. .env.production và mẫu production đặt PG_HOST=cap-cuu-115-db, PG_PORT=5432, DB_NETWORK=PROXY_NETWORK=cap-cuu-115_private; các bí mật đã điền được bảo toàn, không in ra log/chat.
+- Production chỉ app/email-worker/ops; không tạo DB/Nginx, không publish host port. App expose 3000 và alias edu-app trên hai logical external networks; worker/ops gắn database. Cả hai network names có thể trùng hoặc khác nhau. Bỏ override database-network cũ vì khai báo đã nằm trong production file. Nginx mẫu dùng edu-app:3000.
+- URL mẫu tham chiếu PG_HOST/PG_PORT qua Compose interpolation. Preflight thêm kiểm tra URL runtime khớp host/port, đồng thời giữ kiểm tra URL migration cùng DB; chỉ ops nhận credential DDL.
+- Phát hiện local uploads cũ root:root mode700 qua kiểm tra metadata chỉ đọc. Thêm uploads-init local one-shot, network none, chỉ quyền CHOWN/DAC_OVERRIDE/FOWNER trên named volume uploads trước app; đổi owner UID/GID1000, giữ nội dung/file modes. Không chạm volume thật trong lượt kiểm tra cấu hình; khi người dùng up stack mới, init chạy trước app.
+- Cập nhật README, docs index, báo cáo tiến độ hiện tại và tham chiếu release checklist, giữ các việc nghiệp vụ/vận hành chưa nghiệm thu.
+
+### Validation đợt tách môi trường
+
+- docker compose config và cấu hình local tường minh render giống nhau; project/volume/container identity cũ được bảo toàn, local auth/origin/loopback đúng.
+- Production render đúng hostname/port/các mạng đã chốt, SSO, không có published ports/DB/Nginx service, không lộ migration credential sang app/worker.
+- Smoke trên các mạng Docker tạm có tên riêng: case DB/proxy cùng mạng tạo đúng 1 endpoint cho app; case tách mạng có đúng 2 endpoint. Cả hai case app/worker/ops resolve fake cap-cuu-115-db; phía proxy gọi HTTP edu-app:3000 và nginx -t PASS. Không tạo/truy cập cap-cuu-115_private thật.
+- Upload initializer chạy đúng command/capabilities từ Compose trên volume tạm root:700: UID1000 đọc file cũ, ghi file mới, nội dung và mode600 của file cũ giữ nguyên. Tất cả container/network/volume test đã dọn.
+- test:production-config gồm khớp/sai PG_HOST/PG_PORT PASS; targeted lint, tsc và git diff --check PASS. Không chạy lại full build/UI suites cho cấu hình/tài liệu này; kết quả SSO phía trên là bằng chứng đợt trước cùng ngày.
+- Log local được Git bỏ qua: .local/compose-split-validation.log, .local/local-uploads-init-validation.log, .local/compose-split-config-test.log, .local/compose-split-types.log. Còn giữ các container local đang chạy; không restart/redeploy hoặc sửa dữ liệu nghiệp vụ.
+
+
+## Phase03c — Runbook máy chủ cho database edu / edu_user (07/11/2026)
+
+- Theo thông tin máy chủ đã có database edu và user edu_user, cập nhật deploy/production.env.example và .env.production: runtime URL trỏ edu_user@cap-cuu-115-db:5432/edu. Giữ các giá trị bí mật khác; MIGRATION_DATABASE_URL placeholder bỏ trống để dùng cùng tài khoản, URL riêng đã điền được giữ role và chuyển đúng DB edu.
+- Viết docs/HUONG_DAN_KHOI_TAO_MAY_CHU.md: khởi tạo qua production Compose, lưu file thật tại $HOME/.config/edu ngoài checkout với quyền 600/thư mục700, tạo khóa không in giá trị và không xoay khóa đã điền, cấp quyền DB/schema cho role đã có, backup trước migration, migrate status/deploy/preflight, sync SSO/nlhson, worker/Nginx/health và nghiệm thu thật. Không tạo lại DB/user, seed mật khẩu hoặc dữ liệu local; phải cấu hình ngân hàng thật qua /settings trước mở nhận đăng ký.
+- Bổ sung .gitignore/.dockerignore cho backups/secrets, .pgpass, dump/backup và private-key formats. Current-index check: 0 env files, 0 public/uploads files, 0 backup/key/private-folder files tracked. Chỉ kiểm tra phạm vi đường dẫn, không kết luận toàn bộ lịch sử Git chưa từng có secret. Runbook mô tả xử lý tracking/history/rotate nếu phát hiện lộ, không tự viết lại history hoặc commit.
+- Thay hướng dẫn cũ tạo learning_production/learning_app/learning_owner bằng thông tin edu/edu_user và link runbook; cập nhật docs index/báo cáo tiến độ.
+
+### Validation
+
+- PostgreSQL 16 local, DB tạm và role thường KHÔNG sở hữu DB/không superuser/CREATEDB/CREATEROLE: áp dụng đúng các quyền hướng dẫn, prisma migrate deploy đủ9, status và deploy lần2 PASS; CRUD Setting PASS. Đã xóa riêng DB/role có tên fixture được xác nhận, không kết nối server thật.
+- Kiểm tra cú pháp các Bash snippets trong Markdown bằng bash -n; chạy đoạn tạo khóa trên file tạm: hai khóa hex64 khác nhau, mode600, rerun không thay khóa/biến khác PASS.
+- Production Compose render đúng edu_user / edu / cap-cuu-115-db:5432 cho app/worker/ops; migration URL mặc định trống. Không in các env values ra log.
+- git check-ignore cho env/backup/key paths PASS, current tracked-private-path count0, git diff --check PASS. Không chạy lại build/UI cho thay đổi tài liệu/env/ignore này; không phát hành production hay đồng bộ tài khoản thật.
+- Log local: .local/edu-init-validation.log, .local/edu-runbook-validation.log và private migration logs đều ngoài Git.

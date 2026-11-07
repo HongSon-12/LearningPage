@@ -1,12 +1,11 @@
 "use client";
-import Link from "next/link";
+import {PendingLink as Link} from "@/components/navigation/navigation-feedback";
 import { useRef, useState } from "react";
 import {
   ArrowRight,
   ChevronLeft,
   ChevronRight,
   Search,
-  RefreshCw,
   Users,
   ClipboardCheck,
 } from "lucide-react";
@@ -198,16 +197,7 @@ export default function StudentDirectory({
               </p>
             )}
           </div>
-          <Button
-            variant="action"
-            size="sm"
-            aria-label="Làm mới danh sách học viên"
-            disabled={busy}
-            onClick={() => void load(filter)}
-          >
-            <RefreshCw className={busy ? "animate-spin" : ""} />
-            <span className="hidden sm:inline">Làm mới</span>
-          </Button>
+
         </div>
         {!data.items.length ? (
           <div className="space-y-3 px-4 py-10 text-center">

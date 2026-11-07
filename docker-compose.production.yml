@@ -1,0 +1,126 @@
+# Production connects to the existing PostgreSQL and Nginx Docker networks.
+# Never combine this file with the local docker-compose.yml.
+name: learning-production
+
+x-runtime: &runtime
+  NODE_ENV: production
+  AUTH_MODE: sso
+  PG_HOST: ${PG_HOST:-cap-cuu-115-db}
+  PG_PORT: ${PG_PORT:-5432}
+  DATABASE_URL: ${DATABASE_URL:?Set production DATABASE_URL for the dedicated existing database}
+  DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+  PRIVATE_UPLOAD_DIR: /data/uploads
+  APP_ORIGIN: ${APP_ORIGIN:?Set the canonical HTTPS origin}
+  TRUST_PROXY: "true"
+  LOOKUP_OTP_SECRET: ${LOOKUP_OTP_SECRET:?Set a random 64-character hex secret}
+  SMTP_HOST: ${SMTP_HOST:?Set SMTP_HOST}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURE: ${SMTP_SECURE:-false}
+  SMTP_USER: ${SMTP_USER:?Set SMTP_USER}
+  SMTP_PASS: ${SMTP_PASS:?Set SMTP_PASS}
+
+x-sso: &sso
+  SSO_ISSUER: ${SSO_ISSUER:-https://sso.115.org.vn/application/o/edu/}
+  SSO_CLIENT_ID: ${SSO_CLIENT_ID:-y2FhSDe4EM0VbaSKtfCrniWkhHjJNuZECUxSa2XO}
+  SSO_CLIENT_SECRET: ${SSO_CLIENT_SECRET:?Set SSO_CLIENT_SECRET}
+  SSO_TOKEN_ENCRYPTION_KEY: ${SSO_TOKEN_ENCRYPTION_KEY:?Set a separate encryption key}
+  SSO_API_TOKEN: ${SSO_API_TOKEN:?Set a read-only SSO API token}
+  SSO_WEBHOOK_SECRET: ${SSO_WEBHOOK_SECRET:?Set the webhook Bearer secret}
+
+services:
+  app:
+    image: learning-web:${RELEASE_TAG:-local}
+    build:
+      context: .
+      target: runner
+    environment:
+      <<: [*runtime, *sso]
+    expose:
+      - "3000"
+    networks:
+      database:
+        aliases: [edu-app]
+      proxy:
+        aliases: [edu-app]
+    volumes:
+      - uploads:/data/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    init: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ops:
+    image: learning-ops:${RELEASE_TAG:-local}
+    build:
+      context: .
+      target: operations
+    command: ["./node_modules/.bin/tsx", "scripts/check-production.ts"]
+    # Read only by prisma.config.ts; the web and worker never receive this credential.
+    environment:
+      <<: [*runtime, *sso]
+      MIGRATION_DATABASE_URL: ${MIGRATION_DATABASE_URL:-}
+    volumes:
+      - uploads:/data/uploads
+    profiles: ["tools"]
+    networks: [database]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  email-worker:
+    image: learning-ops:${RELEASE_TAG:-local}
+    build:
+      context: .
+      target: operations
+    environment:
+      <<: *runtime
+      DATABASE_POOL_MAX: "2"
+    networks: [database]
+    command: ["./node_modules/.bin/tsx", "scripts/search-email-worker.ts", "--loop"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('node:fs');try{process.exit(Date.now()-fs.statSync('/tmp/learning-email-worker.heartbeat').mtimeMs<600000?0:1)}catch{process.exit(1)}"]
+      interval: 60s
+      timeout: 3s
+      start_period: 60s
+      retries: 3
+    depends_on:
+      app:
+        condition: service_healthy
+    init: true
+    stop_grace_period: 5m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  uploads:
+
+# Both logical networks may point at the same existing Docker network.
+# The stable edu-app alias is declared on both so it also works in that case.
+networks:
+  database:
+    external: true
+    name: ${DB_NETWORK:-cap-cuu-115_private}
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-cap-cuu-115_private}

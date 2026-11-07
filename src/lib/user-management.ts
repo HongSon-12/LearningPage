@@ -1,3 +1,4 @@
+import {ssoEnabled} from "./auth-mode";
 import { hash } from "bcryptjs";
 import { rosterTransaction } from "@/lib/admissions";
 import type { Actor } from "@/lib/permissions";
@@ -10,9 +11,10 @@ async function activeAdmin(tx: Prisma.TransactionClient, actor: Actor) {
     throw new RequestError("Bạn không có quyền quản lý tài khoản.", 403);
 }
 export async function persistUser(actor: Actor, input: UserInput) {
+  if(ssoEnabled()) throw new RequestError("Tài khoản và mật khẩu được quản lý tại SSO 115.");
   const parsed = userInput.safeParse(input);
   if (!parsed.success) throw new RequestError(parsed.error.issues[0].message);
-  const { id, username, password, role, active } = parsed.data;
+  const { id, username, password, role, active, email, customRoleId } = parsed.data;
   const passwordHash = password ? await hash(password, 12) : undefined;
   return rosterTransaction(async (tx) => {
     await activeAdmin(tx, actor);
@@ -46,7 +48,17 @@ export async function persistUser(actor: Actor, input: UserInput) {
       throw new RequestError(
         "Hãy chuyển hoặc gỡ phân công lớp trước khi khóa hay đổi vai trò quản lý này.",
       );
+    const normalizedEmail = email === undefined ? existing?.email ?? null : email.trim().toLowerCase() || null;
+    const selectedRoleId = customRoleId === undefined ? existing?.customRoleId ?? null : customRoleId || null;
+    if (normalizedEmail && await tx.user.findFirst({where:{email:normalizedEmail,...(id?{id:{not:id}}:{})}}))
+      throw new RequestError("Email đã được dùng cho tài khoản khác.");
+    if(selectedRoleId) {
+      const custom = await tx.customRole.findUnique({where:{id:selectedRoleId}});
+      if(!custom || custom.baseRole !== role || role === "ADMIN") throw new RequestError("Vai trò không hợp lệ.");
+    }
     const data = {
+      email: normalizedEmail,
+      customRoleId: selectedRoleId,
       username,
       role,
       active,
@@ -57,7 +69,10 @@ export async function persistUser(actor: Actor, input: UserInput) {
       : await tx.user.create({
           data: { ...data, passwordHash: passwordHash! },
         });
-    if (id) await tx.session.deleteMany({ where: { userId: id } });
+    if (id) {
+      await tx.session.deleteMany({ where: { userId: id } });
+      await tx.passwordResetChallenge.updateMany({where:{userId:id,usedAt:null},data:{usedAt:new Date(),codeHash:null}});
+    }
     await tx.auditLog.create({
       data: {
         actorId: actor.id,
@@ -69,31 +84,19 @@ export async function persistUser(actor: Actor, input: UserInput) {
     return { id: user.id, signInAgain: id === actor.id };
   });
 }
-export async function persistManagerAssignment(
+/** Shared by the class form and legacy assignment action; the caller owns the transaction. */
+export async function assignManagerInTransaction(
+  tx: Prisma.TransactionClient,
   actor: Actor,
   classId: string,
   managerId: string,
 ) {
-  return rosterTransaction(async (tx) => {
-    await activeAdmin(tx, actor);
-    if (
-      managerId &&
-      !(await tx.user.findFirst({
-        where: { id: managerId, active: true, role: "CLASS_MANAGER" },
-      }))
-    )
-      throw new RequestError("Tài khoản quản lý không hợp lệ.");
-    await tx.class.update({
-      where: { id: classId },
-      data: { managerId: managerId || null },
-    });
-    await tx.auditLog.create({
-      data: {
-        actorId: actor.id,
-        action: "CLASS_ASSIGN_MANAGER",
-        resourceId: classId,
-        result: "ALLOWED",
-      },
-    });
-  });
+  await activeAdmin(tx, actor);
+  if (managerId && !(await tx.user.findFirst({where:{id:managerId,active:true,role:"CLASS_MANAGER"}})))
+    throw new RequestError("Tài khoản quản lý không hợp lệ.");
+  await tx.class.update({where:{id:classId},data:{managerId:managerId || null}});
+  await tx.auditLog.create({data:{actorId:actor.id,action:"CLASS_ASSIGN_MANAGER",resourceId:classId,result:"ALLOWED"}});
+}
+export async function persistManagerAssignment(actor: Actor, classId: string, managerId: string) {
+  return rosterTransaction(tx => assignManagerInTransaction(tx, actor, classId, managerId));
 }

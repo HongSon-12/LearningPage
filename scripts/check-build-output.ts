@@ -1,4 +1,4 @@
-import { resolve, join } from "node:path";
+import { resolve, join, relative, dirname } from "node:path";
 import { readdir, lstat, unlink, access } from "node:fs/promises";
 async function main() {
   const root = resolve(process.cwd());
@@ -44,6 +44,13 @@ async function main() {
     const value = JSON.parse(await readFile(trace, "utf8")) as {
       files: string[];
     };
+    // Files named by server traces must also exist in the artifact we ship.
+    // This catches a broad tracing exclusion silently dropping Turbopack runtime chunks.
+    for (const file of value.files) {
+      const absolute=resolve(dirname(trace),file);
+      const serverRoot=resolve(root,dist,"server")+"/";
+      if(absolute.startsWith(serverRoot))await access(resolve(standalone,relative(root,absolute)));
+    }
     if (
       value.files.some((file) =>
         /(?:^|\/)(?:\.local|\.git|\.env(?:\.[^/]+)?)(?:\/|$)/.test(file),
@@ -52,7 +59,7 @@ async function main() {
       throw new Error("PRIVATE_DATA_IN_TRACE");
   }
   console.log(
-    "PASS standalone and server traces exclude private files, backups and local secrets",
+    "PASS standalone traces include required server files and exclude private data/local secrets",
   );
 }
 main().catch(() => {

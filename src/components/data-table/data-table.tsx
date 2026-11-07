@@ -35,26 +35,51 @@ export function DataTable<T extends { id: string }>({
   label,
   emptyTitle,
   emptyDescription,
+  server,
 }: {
   columns: DataColumn<T>[];
   data: T[];
   label: string;
   emptyTitle?: string;
   emptyDescription?: string;
+  server?: {page:number;pages:number;total:number;sort:string;desc:boolean;pending:boolean;onPage:(page:number)=>void;onSort:(sort:string,desc:boolean)=>void};
 }) {
   const table = useTable({
     features: dataTableFeatures,
     data,
     columns,
     getRowId: (row) => row.id,
+    ...(server ? {
+      manualPagination:true,
+      manualSorting:true,
+      enableMultiSort:false,
+      pageCount:server.pages,
+      rowCount:server.total,
+      state:{pagination:{pageIndex:server.page-1,pageSize:10},sorting:[{id:server.sort,desc:server.desc}]},
+      onSortingChange:(updater:import("@tanstack/react-table").Updater<import("@tanstack/react-table").SortingState>)=>{
+        const current=[{id:server.sort,desc:server.desc}];
+        const next=typeof updater === "function" ? updater(current) : updater;
+        server.onSort(next[0]?.id || "createdAt",next[0]?.desc ?? true);
+      },
+      onPaginationChange:(updater:import("@tanstack/react-table").Updater<import("@tanstack/react-table").PaginationState>)=>{
+        const current={pageIndex:server.page-1,pageSize:10};
+        const next=typeof updater === "function" ? updater(current) : updater;
+        server.onPage(next.pageIndex+1);
+      },
+    } : {}),
     initialState: { pagination: { pageIndex: 0, pageSize: 10 } },
   });
-  const page = table.state.pagination.pageIndex;
+  const page = server ? server.page-1 : table.state.pagination.pageIndex;
+  const total = server?.total ?? data.length;
+  function alignment(id:string, meta:unknown) {
+    const configured=(meta as {align?:"left"|"center"|"right"}|undefined)?.align;
+    return configured || (id === "actions" ? "right" : ["capacity","status"].includes(id) ? "center" : "left");
+  }
   return (
     <div className="min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <p role="status" className="text-sm text-muted-foreground">
-          {data.length} {label.toLowerCase()}
+          {total} {label.toLowerCase()}
         </p>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -102,6 +127,8 @@ export function DataTable<T extends { id: string }>({
                 {group.headers.map((header) => (
                   <TableHead
                     key={header.id}
+                    data-align={alignment(header.column.id,header.column.columnDef.meta)}
+                    style={{textAlign:alignment(header.column.id,header.column.columnDef.meta)}}
                     aria-sort={
                       header.column.getCanSort()
                         ? header.column.getIsSorted() === "asc"
@@ -111,13 +138,13 @@ export function DataTable<T extends { id: string }>({
                             : "none"
                         : undefined
                     }
-                    className={`h-12 bg-muted px-4 py-2 text-sm ${header.column.id === "actions" ? "w-px text-right sticky right-0 z-10 md:static" : ""}`}
+                    className={`h-12 bg-muted px-4 py-2 text-sm ${header.column.id === "actions" ? "w-px sticky right-0 z-10 md:static" : ""}`}
                   >
                     {header.isPlaceholder ? null : header.column.getCanSort() ? (
                       <Button
                         variant="ghost"
                         onClick={header.column.getToggleSortingHandler()}
-                        className="-ml-3 h-9 text-sm"
+                        className="h-9 px-0 has-[>svg]:px-0 text-sm"
                       >
                         <table.FlexRender header={header} />
                         {header.column.getIsSorted() === "asc" ? (
@@ -143,6 +170,8 @@ export function DataTable<T extends { id: string }>({
                   {row.getVisibleCells().map((cell) => (
                     <TableCell
                       key={cell.id}
+                      data-align={alignment(cell.column.id,cell.column.columnDef.meta)}
+                      style={{textAlign:alignment(cell.column.id,cell.column.columnDef.meta)}}
                       className={`px-4 py-3 align-middle ${cell.column.id === "actions" ? "w-px text-right [&>button]:align-middle sticky right-0 shadow-[-4px_0_6px_-6px_#64748b] md:static md:shadow-none" : ""}`}
                     >
                       {cell.column.id === "actions" ? (
@@ -172,7 +201,7 @@ export function DataTable<T extends { id: string }>({
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-muted-foreground">
         <p aria-live="polite">
           {data.length ? page * 10 + 1 : 0}–
-          {Math.min((page + 1) * 10, data.length)} / {data.length}
+          {Math.min((page + 1) * 10, total)} / {total}
         </p>
         <div className="flex items-center gap-2">
           <span className="mr-2 text-[length:var(--ui-caption-size,0.8125rem)] leading-5">
@@ -182,7 +211,7 @@ export function DataTable<T extends { id: string }>({
             variant="outline"
             size="icon"
             aria-label="Trang trước"
-            disabled={!table.getCanPreviousPage()}
+            disabled={server?.pending || !table.getCanPreviousPage()}
             onClick={() => table.previousPage()}
           >
             <ChevronLeft />
@@ -191,7 +220,7 @@ export function DataTable<T extends { id: string }>({
             variant="outline"
             size="icon"
             aria-label="Trang sau"
-            disabled={!table.getCanNextPage()}
+            disabled={server?.pending || !table.getCanNextPage()}
             onClick={() => table.nextPage()}
           >
             <ChevronRight />
