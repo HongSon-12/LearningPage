@@ -28,7 +28,7 @@ export default async function ClassLayout({children,params}:{children:ReactNode;
   const unpaid=groups.filter(row=>row.status!=="REJECTED" && row.paymentStatus === "PENDING").reduce((sum,row)=>sum+row._count,0);
   const today=new Date().toLocaleDateString("sv-SE",{timeZone:"Asia/Ho_Chi_Minh"});
   const date=(value:Date)=>value.toLocaleDateString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"});
-  const canSessions=actor.role !== "ACCOUNTANT" && can(actor,"sessions.manage");
+  const canSessions=can(actor,"sessions.manage");
   const metrics=[
     {label:"Học viên",value:`${course._count.registrations}/${course.capacity}`,hint:`${course._count.sessions} buổi học`,href:`/courses/${classId}`},
     {label:"Chờ duyệt",value:pending,hint:"Hồ sơ đăng ký",href:`/courses/${classId}`},

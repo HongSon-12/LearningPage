@@ -13,7 +13,7 @@ export async function queryRegistrationPage(actor: Actor, input: RegistrationFil
         throw new RequestError("Bộ lọc hồ sơ không hợp lệ.");
     const f = parsed.data;
     const scope: Prisma.RegistrationWhereInput = { class: classScope(actor) };
-    const identity = actor.role !== "ACCOUNTANT" && can(actor, "students.identity");
+    const identity = can(actor, "students.identity");
     const conditions: Prisma.RegistrationWhereInput[] = [scope];
     if (f.classId)
         conditions.push({ classId: f.classId });

@@ -17,7 +17,8 @@ async function main(){
   const source=(pk:number,username:string,active=true)=>({pk,uid:createHash('sha256').update(`fixture-user-${pk}`).digest('hex'),username,email:`${username}@fixture.test`,is_active:active,type:'internal',last_updated:new Date().toISOString()});
   sources.set(1,source(1,'nlhson'));sources.set(2,source(2,'trainee'));sources.set(3,{...source(3,'service'),type:'internal_service_account'});
   const oldFetch=globalThis.fetch;const tokenActive=true,currentSubject=String(sources.get(1)!.uid);let introspections=0,apiAvailable=true,nonce='fixture-nonce',badSignature=false;
-  let eventReads=0;
+  let eventReads=0,refreshes=0,refreshRejected=false,refreshWrongSubject=false;
+  let onRefresh:(()=>Promise<void>)|undefined;
   const metadata={issuer,authorization_endpoint:'https://sso.115.org.vn/application/o/authorize/',token_endpoint:'https://sso.115.org.vn/application/o/token/',userinfo_endpoint:'https://sso.115.org.vn/application/o/userinfo/',jwks_uri:issuer+'jwks/',end_session_endpoint:issuer+'end-session/',introspection_endpoint:'https://sso.115.org.vn/application/o/introspect/',response_types_supported:['code'],id_token_signing_alg_values_supported:['RS256'],token_endpoint_auth_methods_supported:['client_secret_post'],code_challenge_methods_supported:['S256']};
   const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json'}});
   globalThis.fetch=async(input,init)=>{
@@ -26,7 +27,14 @@ async function main(){
    if(url.pathname.endsWith('/.well-known/openid-configuration'))return json(metadata);
    if(url.pathname.endsWith('/jwks/'))return json({keys:[jwk]});
    if(url.pathname.endsWith('/token/')){
-    const form=new URLSearchParams(String(init?.body));assert.equal(form.get('client_secret'),process.env.SSO_CLIENT_SECRET);assert.equal(form.get('code_verifier')?.length,43);
+    const form=new URLSearchParams(String(init?.body));assert.equal(form.get('client_secret'),process.env.SSO_CLIENT_SECRET);
+    if(form.get('grant_type')==='refresh_token'){
+     refreshes++;assert(form.get('refresh_token')?.startsWith('fixture-refresh'));await new Promise(resolve=>setTimeout(resolve,15));await onRefresh?.();
+     if(refreshRejected)return json({error:'invalid_grant'},400);
+     const idToken=refreshWrongSubject?await new SignJWT({sub:'wrong-subject',sid:'wrong-sid'}).setProtectedHeader({alg:'RS256',kid:'fixture-key'}).setIssuer(issuer).setAudience(clientId).setIssuedAt().setExpirationTime('5m').sign(privateKey):undefined;
+     return json({access_token:'fixture-refreshed-access',token_type:'Bearer',expires_in:300,refresh_token:'fixture-refresh-rotated',...(idToken?{id_token:idToken}:{})});
+    }
+    assert.equal(form.get('code_verifier')?.length,43);
     const key=badSignature?(await generateKeyPair('RS256')).privateKey:privateKey;
     const idToken=await new SignJWT({sub:currentSubject,sid:'sid-admin',auth_time:Math.floor(Date.now()/1000),nonce,preferred_username:'nlhson'}).setProtectedHeader({alg:'RS256',kid:'fixture-key'}).setIssuer(issuer).setAudience(clientId).setIssuedAt().setExpirationTime('5m').sign(key);
     return json({access_token:'fixture-access',token_type:'Bearer',expires_in:300,id_token:idToken});
@@ -82,10 +90,38 @@ async function main(){
    await assert.rejects(()=>createSsoSession(admin.id,{...claims,sub:'another-immutable-user'},'access','id',300));
    const session=await createSsoSession(admin.id,claims,'fixture-access','fixture-id-token',300);
    const loaded=()=>prisma.session.findUniqueOrThrow({where:{tokenHash:ssoHash(session.token)},include:{user:true}});
+   const freshBefore=introspections;assert(await validSsoSession(await loaded()));assert.equal(introspections,freshBefore,'Fresh login must reuse callback verification');
+   await prisma.session.update({where:{tokenHash:ssoHash(session.token)},data:{ssoCheckedUntil:new Date(0)}});
    const before=introspections;const snapshot=await loaded();assert((await Promise.all(Array.from({length:20},()=>validSsoSession(snapshot)))).every(Boolean));assert.equal(introspections-before,1);
    assert(await validSsoSession(await loaded()));assert.equal(introspections-before,1);
    await prisma.session.update({where:{tokenHash:ssoHash(session.token)},data:{ssoCheckedUntil:new Date(0)}});apiAvailable=false;assert.equal(await validSsoSession(await loaded()),false);apiAvailable=true;
    console.log('PASS admin grant preserved by sync; session leases coalesce 20 checks and fail closed during SSO outage');
+   const renewable=await createSsoSession(admin.id,{...claims,sid:'refresh-fixture'},'fixture-old-access','fixture-old-id',300,'fixture-refresh-seed');
+   const renewableHash=ssoHash(renewable.token),renewableRow=()=>prisma.session.findUniqueOrThrow({where:{tokenHash:renewableHash},include:{user:true}});
+   assert(renewable.expiresAt.getTime()-Date.now()>8*3600000-5000,'5-minute access tokens must not cap the app session');
+   assert.equal(openSsoToken((await renewableRow()).ssoRefreshToken!),'fixture-refresh-seed');
+   await prisma.session.update({where:{tokenHash:renewableHash},data:{ssoAccessTokenExpiresAt:new Date(Date.now()-1000)}});
+   const staleSession=await renewableRow(),refreshBefore=refreshes;
+   assert((await Promise.all(Array.from({length:20},()=>validSsoSession(staleSession)))).every(Boolean));
+   assert.equal(refreshes-refreshBefore,1,'Concurrent requests must rotate only once');
+   const renewed=await renewableRow();assert.equal(openSsoToken(renewed.ssoAccessToken!),'fixture-refreshed-access');assert.equal(openSsoToken(renewed.ssoRefreshToken!),'fixture-refresh-rotated');
+   assert.equal(renewed.expiresAt.getTime(),renewable.expiresAt.getTime(),'Refresh must not extend the absolute app-session limit');
+   assert(await validSsoSession(staleSession));assert.equal(refreshes-refreshBefore,1,'A late stale snapshot must reuse the already-rotated token');
+   await prisma.session.update({where:{tokenHash:renewableHash},data:{ssoAccessTokenExpiresAt:new Date(0),ssoCheckedUntil:new Date(0)}});
+   refreshWrongSubject=true;assert.equal(await validSsoSession(await renewableRow()),false);refreshWrongSubject=false;
+   assert.equal(openSsoToken((await renewableRow()).ssoRefreshToken!),'fixture-refresh-rotated','Identity mismatch must not persist returned tokens');
+   refreshRejected=true;assert.equal(await validSsoSession(await renewableRow()),false);refreshRejected=false;
+   await prisma.session.update({where:{tokenHash:renewableHash},data:{expiresAt:new Date(0)}});
+   const beforeExpired=refreshes;assert.equal(await validSsoSession(await renewableRow()),false);assert.equal(refreshes,beforeExpired,'Expired app sessions must not be refreshed');
+   await prisma.session.delete({where:{tokenHash:renewableHash}});
+   const logoutRace=await createSsoSession(admin.id,{...claims,sid:'refresh-logout-race'},'old','id',300,'fixture-refresh-race');
+   const logoutRaceHash=ssoHash(logoutRace.token);await prisma.session.update({where:{tokenHash:logoutRaceHash},data:{ssoAccessTokenExpiresAt:new Date(0)}});
+   let started!:()=>void,release!:()=>void;const startedRefresh=new Promise<void>(resolve=>{started=resolve;}),releaseRefresh=new Promise<void>(resolve=>{release=resolve;});
+   onRefresh=async()=>{started();await releaseRefresh;};
+   const racingCheck=validSsoSession(await prisma.session.findUniqueOrThrow({where:{tokenHash:logoutRaceHash},include:{user:true}}));
+   await startedRefresh;try{await prisma.session.deleteMany({where:{tokenHash:logoutRaceHash}});}finally{release();onRefresh=undefined;}
+   assert.equal(await racingCheck,false);assert.equal(await prisma.session.count({where:{tokenHash:logoutRaceHash}}),0,'Refresh cannot recreate a session deleted during network I/O');
+   console.log('PASS renewable 8-hour sessions: 5-minute token expiry, encrypted rotation, 20-request coalescing, stale snapshot reuse, rejected refresh/identity change and absolute expiry');
    const signLogout=(payload:Record<string,unknown>,issuerOverride=issuer,aud=clientId)=>new SignJWT(payload).setProtectedHeader({alg:'RS256',kid:'fixture-key'}).setIssuer(issuerOverride).setAudience(aud).setIssuedAt().setJti(randomUUID()).sign(privateKey);
    const event={'http://schemas.openid.net/event/backchannel-logout':{}};
    await assert.rejects(()=>signLogout({sub:claims.sub,sid:claims.sid,events:event},'https://attacker.test/').then(token=>receiveBackchannelLogout(token,verification)));

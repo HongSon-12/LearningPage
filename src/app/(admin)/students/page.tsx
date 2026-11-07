@@ -29,7 +29,7 @@ export default async function StudentsPage() {
       <StudentDirectory
         initialData={data}
         courses={courses}
-        canSearchCccd={actor.role !== "ACCOUNTANT" && can(actor, "students.identity")}
+        canSearchCccd={can(actor, "students.identity")}
       />
     </div>
   );

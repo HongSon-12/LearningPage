@@ -1,6 +1,6 @@
 {
   "name": "LearningPage",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
@@ -32,7 +32,8 @@
     "test:production-config": "tsx tests/production-config.test.ts",
     "sso:sync": "tsx scripts/sync-sso-users.ts",
     "test:sso": "tsx tests/sso.integration.ts",
-    "test:sso-ui": "tsx scripts/test-sso-ui.ts"
+    "test:sso-ui": "tsx scripts/test-sso-ui.ts",
+    "test:session-guard": "tsx tests/session-guard.browser.ts"
   },
   "dependencies": {
     "@daypicker/react": "10.0.2",

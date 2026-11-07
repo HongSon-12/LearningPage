@@ -1,0 +1,4 @@
+
+docker compose --env-file .env.production \
+  -f docker-compose.production.yml \
+  up -d --build --wait --wait-timeout 180 edu-app email-worker

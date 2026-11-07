@@ -1,15 +1,11 @@
 import {ssoEnabled} from "./auth-mode";
 import { hash } from "bcryptjs";
 import { rosterTransaction } from "@/lib/admissions";
-import type { Actor } from "@/lib/permissions";
+import { assertClassAccess, type Actor } from "@/lib/permissions";
 import { RequestError } from "@/lib/security";
 import { userInput, type UserInput } from "@/lib/user-input";
 import type { Prisma } from "@prisma/client";
-async function activeAdmin(tx: Prisma.TransactionClient, actor: Actor) {
-  const user = await tx.user.findUnique({ where: { id: actor.id } });
-  if (!user?.active || user.role !== "ADMIN")
-    throw new RequestError("Bạn không có quyền quản lý tài khoản.", 403);
-}
+import { transactionPermission } from "./rbac";
 export async function persistUser(actor: Actor, input: UserInput) {
   if(ssoEnabled()) throw new RequestError("Tài khoản và mật khẩu được quản lý tại SSO 115.");
   const parsed = userInput.safeParse(input);
@@ -17,12 +13,9 @@ export async function persistUser(actor: Actor, input: UserInput) {
   const { id, username, password, role, active, email, customRoleId } = parsed.data;
   const passwordHash = password ? await hash(password, 12) : undefined;
   return rosterTransaction(async (tx) => {
-    await activeAdmin(tx, actor);
-    if (id === actor.id && (!active || role !== "ADMIN"))
-      throw new RequestError(
-        "Không thể tự khóa hoặc hạ quyền tài khoản đang sử dụng.",
-      );
+    await transactionPermission(tx, actor, "users.manage");
     const existing = id ? await tx.user.findUnique({ where: { id } }) : null;
+    if(id===actor.id && (!active || role!==existing?.role || (customRoleId ?? existing?.customRoleId ?? "") !== (existing?.customRoleId ?? ""))) throw new RequestError("Không thể tự khóa hoặc đổi vai trò tài khoản đang sử dụng.");
     if (id && !existing)
       throw new RequestError("Không tìm thấy tài khoản.", 404);
     if (
@@ -41,8 +34,8 @@ export async function persistUser(actor: Actor, input: UserInput) {
         "Phải giữ ít nhất một tài khoản Quản trị đang hoạt động.",
       );
     if (
-      existing?.role === "CLASS_MANAGER" &&
-      (!active || role !== "CLASS_MANAGER") &&
+      existing &&
+      !active &&
       (await tx.class.count({ where: { managerId: id } }))
     )
       throw new RequestError(
@@ -91,8 +84,10 @@ export async function assignManagerInTransaction(
   classId: string,
   managerId: string,
 ) {
-  await activeAdmin(tx, actor);
-  if (managerId && !(await tx.user.findFirst({where:{id:managerId,active:true,role:"CLASS_MANAGER"}})))
+  const current=await transactionPermission(tx, actor, "classes.assign");
+  const course=await tx.class.findUniqueOrThrow({where:{id:classId}});
+  assertClassAccess(current,course);
+  if (managerId && !(await tx.user.findFirst({where:{id:managerId,active:true}})))
     throw new RequestError("Tài khoản quản lý không hợp lệ.");
   await tx.class.update({where:{id:classId},data:{managerId:managerId || null}});
   await tx.auditLog.create({data:{actorId:actor.id,action:"CLASS_ASSIGN_MANAGER",resourceId:classId,result:"ALLOWED"}});

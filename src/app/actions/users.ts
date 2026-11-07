@@ -1,7 +1,7 @@
 "use server";
 import {ssoEnabled} from "@/lib/auth-mode";
 import {persistSsoAccess} from "@/lib/sso-access";
-import { requireUser } from "@/lib/auth";
+import { requirePermission } from "@/lib/auth";
 import { errorMessage } from "@/lib/admissions";
 import { revalidatePath } from "next/cache";
 import { persistUser, persistManagerAssignment } from "@/lib/user-management";
@@ -9,7 +9,7 @@ import { rateLimit } from "@/lib/security";
 import type { UserInput } from "@/lib/user-input";
 export async function saveUser(form: FormData) {
   try {
-    const actor = await requireUser(["ADMIN"]);
+    const actor = await requirePermission("users.manage");
     await rateLimit("user-management", actor.id, 30, 60000);
     const result = ssoEnabled() ? await persistSsoAccess(actor, {
       id: String(form.get("id") || ""), role: String(form.get("role")), active: form.get("active") === "on", customRoleId: String(form.get("customRoleId") || ""),
@@ -30,7 +30,7 @@ export async function saveUser(form: FormData) {
 }
 export async function assignManager(classId: string, managerId: string) {
   try {
-    const actor = await requireUser(["ADMIN"]);
+    const actor = await requirePermission("classes.assign");
     await persistManagerAssignment(actor, classId, managerId);
     revalidatePath("/users");
     revalidatePath("/courses", "layout");

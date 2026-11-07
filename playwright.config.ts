@@ -24,12 +24,13 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3101",
     browserName: "chromium",
+    launchOptions:{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||undefined},
     actionTimeout: 10000,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
   webServer: {
-    command: "pnpm exec tsx scripts/start-ui-server.ts",
+    command: "./node_modules/.bin/tsx scripts/start-ui-server.ts",
     url: "http://localhost:3101/login",
     reuseExistingServer: false,
     timeout: 60000,

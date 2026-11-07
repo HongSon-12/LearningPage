@@ -19,13 +19,13 @@ export async function GET(request: Request) {
     const config = await oidcConfiguration();
     const tokens = await oidc.authorizationCodeGrant(config, callback, { pkceCodeVerifier: flow.verifier, expectedState: state, expectedNonce: flow.nonce, idTokenExpected: true });
     const claims = z.object({ sub: z.string().min(1).max(255), sid: z.string().min(1).max(255), auth_time: z.number().int().positive() }).parse(tokens.claims());
-    if (!tokens.id_token || !tokens.expires_in || tokens.expires_in <= 0 || claims.auth_time > Date.now()/1000 + 5) throw Error("SSO_TOKEN_INVALID");
+    if (!tokens.id_token || !tokens.refresh_token || !tokens.expires_in || tokens.expires_in <= 0 || claims.auth_time > Date.now()/1000 + 5) throw Error("SSO_TOKEN_INVALID");
     const profile = z.object({ preferred_username: z.string().min(1).max(150) }).parse(await oidc.fetchUserInfo(config, tokens.access_token, claims.sub));
     const source = await directoryUserByUsername(profile.preferred_username);
     if(claims.sub !== source.uid && claims.sub !== String(source.pk)) throw Error("SSO_SUBJECT_IDENTITY_MISMATCH");
     const user = await syncDirectoryUser(source);
     if (!user?.active || !user.ssoActive || !user.appAccessGranted) return NextResponse.redirect(new URL("/login?error=access-denied", settings.origin), { headers: ssoNoStore });
-    const session = await createSsoSession(user.id, claims, tokens.access_token, tokens.id_token, tokens.expires_in);
+    const session = await createSsoSession(user.id, claims, tokens.access_token, tokens.id_token, tokens.expires_in, tokens.refresh_token);
     (await cookies()).set("ttcc_session", session.token, { httpOnly: true, secure: true, sameSite: "lax", expires: session.expiresAt, path: "/" });
     return NextResponse.redirect(new URL("/", settings.origin), { headers: ssoNoStore });
   } catch {

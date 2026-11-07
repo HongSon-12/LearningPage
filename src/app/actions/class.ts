@@ -4,9 +4,9 @@ import {RequestError} from "@/lib/errors";
 import { invalidatePublicClasses } from "@/lib/public-classes";
 import { assignManagerInTransaction } from "@/lib/user-management";
 import { transactionPermission } from "@/lib/rbac";
-import { assertPermission } from "@/lib/permissions";
+import { assertPermission, can } from "@/lib/permissions";
 
-import { requireUser, classScope, assertClassAccess } from "@/lib/auth";
+import { requireUser, requirePermission, classScope, assertClassAccess } from "@/lib/auth";
 import { occupiedWhere, rosterTransaction, errorMessage, lockClasses } from "@/lib/admissions";
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
@@ -42,7 +42,7 @@ export async function getClasses() {
 
 export async function createClass(formData: FormData) {
   try {
-    const actor = await requireUser(["ADMIN"]);
+    const actor = await requirePermission("classes.create");
     const code = formData.get("code") as string;
     const name = formData.get("name") as string;
     const courseType = formData.get("courseType") as CourseType || "COMMUNITY_FIRST_AID";
@@ -66,6 +66,7 @@ export async function createClass(formData: FormData) {
     const current = await transactionPermission(tx, actor, "classes.create");
     const course = await tx.class.create({
       data: {
+        managerId:can(current,"classes.all") ? null : current.id,
         code,
         name,
         courseType,
@@ -97,10 +98,12 @@ export async function createClass(formData: FormData) {
 
 export async function deleteClass(id: string) {
   try {
-    await requireUser(["ADMIN"]);
-    // Kiem tra xem co the xoa khong, Prisma se bao loi neu co khoa ngoai
-    await prisma.class.delete({
-      where: { id },
+    const actor = await requirePermission("classes.delete");
+    await rosterTransaction(async tx => {
+      const current = await transactionPermission(tx,actor,"classes.delete");
+      const course = await tx.class.findUniqueOrThrow({where:{id}});
+      assertClassAccess(current,course);
+      await tx.class.delete({where:{id}});
     });
     invalidatePublicClasses();
     revalidatePath("/courses", "layout"); revalidatePath("/hocsocapcuu/courses");
@@ -113,9 +116,8 @@ export async function deleteClass(id: string) {
 
 export async function updateClass(id: string, formData: FormData) {
   try {
-    const actor = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    const actor = await requirePermission("classes.edit");
     assertPermission(actor, "classes.edit");
-    if (formData.has("managerId") && actor.role !== "ADMIN") throw new RequestError("Chỉ Quản trị được đổi người phụ trách.");
     const existing = await prisma.class.findUniqueOrThrow({where: {id}});
     assertClassAccess(actor, existing);
     const code = formData.get("code") as string;

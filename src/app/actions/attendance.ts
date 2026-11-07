@@ -16,7 +16,7 @@ export async function saveSession(
   input: SessionInput,
 ) {
   try {
-    const actor = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    const actor = await requireUser();
     await rateLimit("session-save", actor.id, 60, 60000);
     await saveClassSession(actor, classId, id, input);
     revalidatePath(`/courses/${classId}`, "layout");
@@ -27,7 +27,7 @@ export async function saveSession(
 }
 export async function closeSession(sessionId: string, closed: boolean) {
   try {
-    const actor = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    const actor = await requireUser();
     const classId = await setSessionClosed(actor, sessionId, closed);
     revalidatePath(`/courses/${classId}`, "layout");
     return { success: true };
@@ -41,7 +41,7 @@ export async function searchAttendance(
   method: "QR" | "MANUAL",
 ) {
   try {
-    const actor = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    const actor = await requireUser();
     await rateLimit("attendance-search", actor.id, 120, 60000);
     return {
       success: true,
@@ -58,7 +58,7 @@ export async function confirmAttendance(
   method: "QR" | "MANUAL",
 ) {
   try {
-    const actor = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    const actor = await requireUser();
     await rateLimit("attendance-write", actor.id, 120, 60000);
     const classId = await recordAttendance(
       actor,

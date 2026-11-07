@@ -11,7 +11,7 @@ export async function beginSsoLogin() {
   const browser = randomBytes(32).toString("hex"), state = oidc.randomState(), nonce = oidc.randomNonce(), verifier = oidc.randomPKCECodeVerifier();
   await prisma.ssoFlow.create({ data: { id: ssoHash(browser), kind: "login", stateHash: ssoHash(state), nonce, verifier, expiresAt: new Date(Date.now() + 600000) } });
   (await cookies()).set(flowCookie, browser, options);
-  return oidc.buildAuthorizationUrl(config, { redirect_uri: settings.callback, scope: "openid profile email", response_type: "code", code_challenge: await oidc.calculatePKCECodeChallenge(verifier), code_challenge_method: "S256", state, nonce });
+  return oidc.buildAuthorizationUrl(config, { redirect_uri: settings.callback, scope: "openid profile email offline_access", response_type: "code", code_challenge: await oidc.calculatePKCECodeChallenge(verifier), code_challenge_method: "S256", state, nonce });
 }
 export async function consumeSsoFlow(state: string, kind: "login" | "logout") {
   if (state.length > 256) throw Error("SSO_STATE_INVALID");

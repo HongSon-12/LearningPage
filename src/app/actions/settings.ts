@@ -1,13 +1,14 @@
 "use server";
 
-import { requireUser } from "@/lib/auth";
-import prisma from "@/lib/prisma";
+import { requirePermission } from "@/lib/auth";
+import { rosterTransaction } from "@/lib/admissions";
+import { transactionPermission } from "@/lib/rbac";
 import { TRANSFER_SYNTAX } from "@/lib/payment-content";
 import { revalidatePath } from "next/cache";
 
 export async function updateSettings(formData: FormData) {
   try {
-    await requireUser(["ADMIN"]);
+    const actor=await requirePermission("settings.manage");
     const bankName = formData.get("bankName") as string;
     const accountName = formData.get("accountName") as string;
     const accountNumber = formData.get("accountNumber") as string;
@@ -26,10 +27,13 @@ export async function updateSettings(formData: FormData) {
       microsoftClarityId,
     };
 
-    await prisma.setting.upsert({
+    await rosterTransaction(async tx => {
+    await transactionPermission(tx,actor,"settings.manage");
+    await tx.setting.upsert({
       where: { id: 1 },
       update: data,
       create: { id: 1, ...data },
+    });
     });
 
     revalidatePath("/settings");

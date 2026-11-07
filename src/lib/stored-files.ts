@@ -50,8 +50,6 @@ export async function storeUpload(
   if (staff) {
     if (!can(staff, kind === "RECEIPT" ? "receipts.view" : "students.identity")) throw new RequestError("Không có quyền tải tài liệu này.", 403);
     assertClassAccess(staff, course);
-    if (staff.role === "ACCOUNTANT" && kind !== "RECEIPT")
-      throw new RequestError("Không có quyền tải loại tài liệu này.", 403);
   }
   if (registrationId) {
     const reg = await prisma.registration.findUnique({
@@ -155,7 +153,7 @@ export async function accessibleFile(fileId: string, actor: Actor | null) {
     where: { id: fileId },
     include: { registration: { include: { class: true } } },
   });
-  if (!file || !can(actor, file.kind === "RECEIPT" ? "receipts.view" : "students.identity") || (actor.role === "ACCOUNTANT" && file.kind !== "RECEIPT"))
+  if (!file || !can(actor, file.kind === "RECEIPT" ? "receipts.view" : "students.identity"))
     return null;
   if (file.registration) {
     const field = fileFields.find(([, , kind]) => kind === file.kind)![1];

@@ -69,7 +69,7 @@ export default async function StudentPage({
         <Button asChild variant="outline" size="sm">
           <a
             href={
-              actor.role === "ADMIN"
+              can(actor,"students.edit")
                 ? "#student-profile-editor"
                 : "#student-profile-info"
             }
@@ -98,7 +98,7 @@ export default async function StudentPage({
               </p>
             </aside>
           )}
-          {actor.role === "ADMIN" ? (
+          {can(actor,"students.edit") ? (
             <ProfileEditor
               student={{
                 id: student.id,
@@ -129,7 +129,7 @@ export default async function StudentPage({
                   [
                     "CCCD",
                     student.cccd
-                      ? actor.role === "ACCOUNTANT" || !can(actor, "students.identity")
+                      ? !can(actor, "students.identity")
                         ? `********${student.cccd.slice(-4)}`
                         : student.cccd
                       : "Chưa có",

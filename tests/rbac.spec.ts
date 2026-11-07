@@ -6,6 +6,7 @@ import { codeDigest } from "../src/lib/lookup-otp";
 import { compare } from "bcryptjs";
 import { hashSecret } from "../src/lib/security";
 import { chooseSelect } from "./controls-helper";
+test.describe.configure({mode:"serial"});
 const accounts: Record<string,{id:string;token:string}> = {};
 let classId = "";
 let registrationId = "";
@@ -55,6 +56,8 @@ test("separate administration pages, stale actions, revoked pages/menu and Excel
     await manager.page.goto("/courses");
     await expect(manager.page.getByRole("button",{name:"Sửa lớp RBAC-TEST",exact:true})).toHaveCount(0);
     await page.getByRole("checkbox",{name:"Xem danh sách lớp",exact:true}).uncheck();
+    await expect(page.getByRole("checkbox",{name:"Xem hồ sơ đăng ký",exact:true})).toBeChecked();
+    for(const label of ["Xem hồ sơ đăng ký","Tra cứu hồ sơ và lịch sử học","Xem và sao chép liên kết lớp","Xuất Excel / tải mẫu","Kiểm tra / nhập Excel theo quyền từng trường"]) await page.getByRole("checkbox",{name:label,exact:true}).uncheck();
     await page.getByRole("button",{name:"Lưu",exact:true}).click();
     await expect(page.getByRole("status")).toContainText("Đã lưu");
     for(const path of ["/courses","/registrations","/students","/course-links","/permissions","/users"]){
@@ -70,15 +73,19 @@ test("separate administration pages, stale actions, revoked pages/menu and Excel
     await chooseSelect(accountant.page,accountant.page.getByRole("combobox",{name:"Thanh toán Học viên kiểm thử",exact:true}),"PAID");
     await expect.poll(async()=>(await prisma.registration.findUniqueOrThrow({where:{id:registrationId}})).paymentStatus).toBe("PAID");
     await page.getByRole("button",{name:"Kế toán",exact:true}).click();
-    await expect(page.getByRole("checkbox",{name:/Xem CCCD đầy đủ/})).toBeDisabled();
+    await expect(page.getByRole("checkbox",{name:/Xem CCCD đầy đủ/})).toBeEnabled();
     await page.getByRole("checkbox",{name:"Cập nhật trạng thái thanh toán",exact:true}).uncheck();
     await page.getByRole("button",{name:"Lưu",exact:true}).click();
     await expect(page.getByRole("status")).toContainText("Đã lưu");
     await accountant.page.reload();
     await expect(accountant.page.getByRole("combobox",{name:"Thanh toán Học viên kiểm thử",exact:true})).toHaveCount(0);
     await page.getByRole("button",{name:/Quản trị/}).click();
-    for(const box of await page.getByRole("checkbox").all()){await expect(box).toBeChecked();await expect(box).toBeDisabled();}
-    await page.screenshot({path:".local/ui-phase1/permissions-protected.png",fullPage:true});
+    for(const box of await page.getByRole("checkbox").all()){await expect(box).toBeChecked();await expect(box).toBeEnabled();}
+    await page.getByRole("checkbox",{name:"Tạo lớp học",exact:true}).uncheck();
+    await page.getByRole("button",{name:"Lưu",exact:true}).click();await expect(page.getByRole("status")).toContainText("Đã lưu");
+    await page.reload();await page.getByRole("button",{name:/Quản trị/}).click();await expect(page.getByRole("checkbox",{name:"Tạo lớp học",exact:true})).not.toBeChecked();
+    await page.getByRole("checkbox",{name:"Tạo lớp học",exact:true}).check();await page.getByRole("button",{name:"Lưu",exact:true}).click();await expect(page.getByRole("status")).toContainText("Đã lưu");
+    await page.screenshot({path:".local/ui-phase1/permissions-configurable.png",fullPage:true});
   } finally { await Promise.all(contexts.map(context=>context.close())); }
 });
 
@@ -87,7 +94,9 @@ test("custom roles, account recovery email, dashboard scope and password reset f
  try{
   const admin=await staff(browser,"ADMIN");contexts.push(admin.context);const page=admin.page;
   await page.goto("/permissions");await page.getByRole("button",{name:"Thêm vai trò",exact:true}).click();
+  await expect(page.getByLabel("Nghiệp vụ",{exact:true})).toHaveCount(0);
   await page.getByLabel("Tên vai trò",{exact:true}).fill("Tiếp nhận thử");
+  await page.getByRole("checkbox",{name:"Xem tổng quan hệ thống",exact:true}).check();
   await page.getByRole("checkbox",{name:"Xem danh sách lớp",exact:true}).check();
   await page.getByRole("checkbox",{name:"Xem hồ sơ đăng ký",exact:true}).check();
   await page.getByRole("button",{name:"Lưu",exact:true}).click();await expect(page.getByRole("status")).toContainText("Đã lưu");
@@ -108,7 +117,7 @@ test("custom roles, account recovery email, dashboard scope and password reset f
   await expect(manager.page.getByText("Học viên kiểm thử",{exact:true})).toBeVisible();await expect(manager.page.getByText("Ngoài phạm vi không hiển thị",{exact:true})).toHaveCount(0);
   await expect(manager.page.getByRole("heading",{name:"Thống kê truy cập & đăng ký",exact:true})).toHaveCount(0);
   await page.goto("/permissions");await page.getByRole("button",{name:"Tiếp nhận thử",exact:true}).click();
-  await page.getByRole("checkbox",{name:"Xem danh sách lớp",exact:true}).uncheck();await page.getByRole("button",{name:"Lưu",exact:true}).click();await expect(page.getByRole("status")).toContainText("Đã lưu");
+  await page.getByRole("checkbox",{name:"Xem danh sách lớp",exact:true}).uncheck();await page.getByRole("checkbox",{name:"Xem hồ sơ đăng ký",exact:true}).uncheck();await page.getByRole("button",{name:"Lưu",exact:true}).click();await expect(page.getByRole("status")).toContainText("Đã lưu");
   await manager.page.reload();await expect(manager.page.getByText("Học viên kiểm thử",{exact:true})).toHaveCount(0);await expect(manager.page.getByRole("heading",{name:"Tổng quan hệ thống",exact:true})).toBeVisible();
   await manager.page.goto("/login");await manager.page.getByRole("link",{name:"Quên mật khẩu?",exact:true}).click();
   await manager.page.getByLabel("Email khôi phục",{exact:true}).fill("recovery@example.test");await manager.page.getByRole("button",{name:"Nhận mã",exact:true}).click();await expect(manager.page.getByRole("status")).toContainText("Nếu email khớp");
@@ -122,4 +131,34 @@ test("custom roles, account recovery email, dashboard scope and password reset f
   expect(await compare("new-password-fixture",(await prisma.user.findUniqueOrThrow({where:{id:accounts.CLASS_MANAGER.id}})).passwordHash)).toBe(true);
   expect(await prisma.session.count({where:{userId:accounts.CLASS_MANAGER.id}})).toBe(0);
  }finally{await Promise.all(contexts.map(context=>context.close()));}
+});
+
+
+test("custom roles can receive every grant without a business selector or protected checkboxes",async({browser})=>{
+ const admin=await staff(browser,"ADMIN");let delegated:Awaited<ReturnType<typeof staff>>|undefined;
+ try{
+  const page=admin.page;await page.goto("/permissions");await page.getByRole("button",{name:"Thêm vai trò",exact:true}).click();
+  await expect(page.getByLabel("Nghiệp vụ",{exact:true})).toHaveCount(0);
+  await page.getByLabel("Tên vai trò",{exact:true}).fill("Điều phối toàn quyền thử");
+  for(const box of await page.getByRole("checkbox").all())await expect(box).toBeEnabled();
+  await page.getByRole("button",{name:"Chọn tất cả",exact:true}).click();
+  for(const box of await page.getByRole("checkbox").all())await expect(box).toBeChecked();
+  await page.getByRole("button",{name:"Bỏ chọn tất cả",exact:true}).click();
+  for(const box of await page.getByRole("checkbox").all())await expect(box).not.toBeChecked();
+  await page.getByRole("checkbox",{name:"Cập nhật trạng thái thanh toán",exact:true}).check();
+  await expect(page.getByRole("checkbox",{name:"Xem hồ sơ đăng ký",exact:true})).not.toBeChecked();
+  await page.getByRole("button",{name:"Chọn tất cả",exact:true}).click();
+  await page.getByRole("button",{name:"Lưu",exact:true}).click();await expect(page.getByRole("status")).toContainText("Đã lưu");
+  const role=await prisma.customRole.findUniqueOrThrow({where:{nameKey:"điều phối toàn quyền thử"}});
+  for(const key of ["roles.manage","users.manage","settings.manage","classes.create","classes.all","students.identity"])expect(role.permissions).toContain(key);
+  await page.goto("/users");await page.getByRole("button",{name:"Chọn tài khoản ACCOUNTANT",exact:true}).click();
+  const editor=page.getByRole("region",{name:"Thông tin tài khoản",exact:true});
+  await chooseSelect(page,editor.getByRole("combobox",{name:"Vai trò",exact:true}),`custom:${role.id}`);
+  await editor.getByRole("button",{name:"Lưu",exact:true}).click();
+  await expect.poll(async()=>(await prisma.user.findUniqueOrThrow({where:{id:accounts.ACCOUNTANT.id}})).customRoleId).toBe(role.id);
+  await prisma.session.create({data:{userId:accounts.ACCOUNTANT.id,tokenHash:hashSecret(accounts.ACCOUNTANT.token),expiresAt:new Date(Date.now()+3600000)}});
+  delegated=await staff(browser,"ACCOUNTANT");
+  for(const path of ["/permissions","/users","/settings","/courses"]){await delegated.page.goto(path);await expect(delegated.page).toHaveURL(path);}
+  await expect(delegated.page.getByRole("navigation").getByRole("link",{name:"Phân quyền",exact:true})).toBeVisible();
+ }finally{await admin.context.close();await delegated?.context.close();}
 });

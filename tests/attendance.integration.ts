@@ -259,9 +259,9 @@ async function main() {
     );
     await assert.rejects(() => setSessionClosed(manager, session.id, true));
     await setSessionClosed(other, session.id, true);
-    await assert.rejects(() =>
-      persistManagerAssignment(admin, course.id, accountant.id),
-    );
+    await persistManagerAssignment(admin, course.id, accountant.id);
+    assert.equal((await prisma.class.findUniqueOrThrow({where:{id:course.id}})).managerId,accountant.id);
+    await persistManagerAssignment(admin, course.id, other.id);
     const account = {
       id: "",
       username: "synthetic-new-user",

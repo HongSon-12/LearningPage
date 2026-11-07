@@ -2,10 +2,10 @@ import {ssoEnabled} from "@/lib/auth-mode";
 import { Users } from "lucide-react";
 import { PageHeader } from "../components/AdminUI";
 import prisma from "@/lib/prisma";
-import { pageUser } from "@/lib/auth";
+import { pagePermission } from "@/lib/auth";
 import UsersForm from "./UsersForm";
 export default async function UsersPage() {
-  const actor = await pageUser(["ADMIN"]);
+  const actor = await pagePermission("users.manage");
   const users = await prisma.user.findMany({ select: { id: true, username: true, role: true, active: true, email:true, customRoleId:true, ssoUserId:true, ssoActive:true, appAccessGranted:true }, orderBy: { username: "asc" } });
   const customRoles=await prisma.customRole.findMany({select:{id:true,name:true,baseRole:true},orderBy:{name:"asc"}});
   return (

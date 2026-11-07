@@ -1,4 +1,4 @@
-import { pageUser } from "@/lib/auth";
+import { pagePermission } from "@/lib/auth";
 import { Settings } from "lucide-react";
 import { PageHeader } from "../components/AdminUI";
 import prisma from "@/lib/prisma";
@@ -7,7 +7,7 @@ import SettingsForm from "./SettingsForm";
 export const dynamic = "force-dynamic";
 
 export default async function AdminSettingsPage() {
-  await pageUser(["ADMIN"]);
+  await pagePermission("settings.manage");
   let settings = await prisma.setting.findUnique({
     where: { id: 1 },
   });

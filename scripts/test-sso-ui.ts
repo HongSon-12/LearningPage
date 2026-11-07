@@ -31,7 +31,8 @@ async function main(){
   for(const user of users)await syncDirectoryUser(user);
   const {privateKey,publicKey}=await generateKeyPair('RS256'),jwk={...await exportJWK(publicKey),kid:'ui-fixture',use:'sig',alg:'RS256'};
   type Login={user:typeof users[number];sid:string;nonce:string;challenge:string;active:boolean};
-  const codes=new Map<string,Login>(),tokens=new Map<string,Login>(),events=new Map<string,unknown>();
+  const codes=new Map<string,Login>(),tokens=new Map<string,Login>(),refreshTokens=new Map<string,Login>(),events=new Map<string,unknown>();
+  const metrics={codeGrants:0,refreshGrants:0,userInfoReads:0,introspections:0,directoryReads:0,endSessions:0};
   const metadata={issuer,authorization_endpoint:sso+'/application/o/authorize/',token_endpoint:sso+'/application/o/token/',userinfo_endpoint:sso+'/application/o/userinfo/',jwks_uri:issuer+'jwks/',end_session_endpoint:issuer+'end-session/',introspection_endpoint:sso+'/application/o/introspect/',response_types_supported:['code'],id_token_signing_alg_values_supported:['RS256'],token_endpoint_auth_methods_supported:['client_secret_post'],code_challenge_methods_supported:['S256']};
   async function localPost(url:string,data:string,headers:Record<string,string>){
    return new Promise<{ok:boolean}>((resolve,reject)=>{const request=httpsRequest(url,{method:'POST',ca:tls.cert,headers},response=>{response.resume();resolve({ok:response.statusCode===200});});request.on('error',reject);request.end(data);});
@@ -53,15 +54,26 @@ async function main(){
     res.writeHead(302,{location:app+'/api/auth/callback/authentik?'+new URLSearchParams({code,state:url.searchParams.get('state')!}),'set-cookie':`fixture-sid=${sid}; Secure; HttpOnly; SameSite=Lax; Path=/`});return res.end();
    }
    if(url.pathname==='/application/o/token/'){
-    const form=new URLSearchParams(await body(req)),login=codes.get(form.get('code')||'');
+    const form=new URLSearchParams(await body(req));
+    if(form.get('grant_type')==='refresh_token'){
+     metrics.refreshGrants++;
+     const previous=form.get('refresh_token')||'',login=refreshTokens.get(previous);
+     if(form.get('client_secret')!==secret||!login?.active||!login.user.is_active)return json(res,{error:'invalid_grant'},400);
+     refreshTokens.delete(previous);const access=randomBytes(24).toString('hex'),refresh=randomBytes(24).toString('hex');tokens.set(access,login);refreshTokens.set(refresh,login);
+     return json(res,{access_token:access,refresh_token:refresh,token_type:'Bearer',expires_in:300});
+    }
+    const login=codes.get(form.get('code')||'');
+    metrics.codeGrants++;
     if(form.get('client_secret')!==secret||!login||createHash('sha256').update(form.get('code_verifier')||'').digest('base64url')!==login.challenge)return json(res,{error:'invalid_grant'},400);
     codes.delete(form.get('code')!);const access=randomBytes(24).toString('hex');tokens.set(access,login);
     const idToken=await new SignJWT({sub:login.user.uid,sid:login.sid,nonce:login.nonce,auth_time:now(),preferred_username:login.user.username}).setProtectedHeader({alg:'RS256',kid:'ui-fixture'}).setIssuer(issuer).setAudience(clientId).setIssuedAt().setExpirationTime('10m').sign(privateKey);
-    return json(res,{access_token:access,id_token:idToken,token_type:'Bearer',expires_in:600});
+    const refresh=randomBytes(24).toString('hex');refreshTokens.set(refresh,login);
+    return json(res,{access_token:access,id_token:idToken,refresh_token:refresh,token_type:'Bearer',expires_in:300});
    }
-   if(url.pathname==='/application/o/userinfo/'){const login=tokens.get((req.headers.authorization||'').replace('Bearer ',''));return json(res,login?{sub:login.user.uid,preferred_username:login.user.username}:{},login?200:401);}
-   if(url.pathname==='/application/o/introspect/'){const form=new URLSearchParams(await body(req));if(form.get('client_secret')!==secret)return json(res,{},401);const login=tokens.get(form.get('token')||'');return json(res,login?{active:login.active&&login.user.is_active,sub:login.user.uid,client_id:clientId}:{active:false});}
+   if(url.pathname==='/application/o/userinfo/'){metrics.userInfoReads++;const login=tokens.get((req.headers.authorization||'').replace('Bearer ',''));return json(res,login?{sub:login.user.uid,preferred_username:login.user.username}:{},login?200:401);}
+   if(url.pathname==='/application/o/introspect/'){metrics.introspections++;const form=new URLSearchParams(await body(req));if(form.get('client_secret')!==secret)return json(res,{},401);const login=tokens.get(form.get('token')||'');return json(res,login?{active:login.active&&login.user.is_active,sub:login.user.uid,client_id:clientId}:{active:false});}
    if(url.pathname===issuer.replace(sso,'')+'end-session/'){
+    metrics.endSessions++;
     const cookie=Object.fromEntries((req.headers.cookie||'').split(';').map(part=>part.trim().split('=')));
     for(const login of tokens.values())if(login.sid===cookie['fixture-sid'])await deliverLogout(login);
     res.writeHead(302,{location:app+'/da-dang-xuat?'+new URLSearchParams({state:url.searchParams.get('state')!}),'set-cookie':'fixture-sid=; Max-Age=0; Secure; HttpOnly; Path=/'});return res.end();
@@ -69,6 +81,8 @@ async function main(){
    if(url.pathname.startsWith('/fixture/')){
     if(req.headers.authorization!=='Bearer '+controlSecret)return json(res,{},401);
     const data=JSON.parse(await body(req)||'{}');
+    if(url.pathname==='/fixture/metrics')return json(res,metrics);
+    if(url.pathname==='/fixture/expire-checks'){await prisma.session.updateMany({data:{ssoCheckedUntil:new Date(0)}});return json(res,{ok:true});}
     if(url.pathname==='/fixture/logout'){
      for(const login of tokens.values())if(login.active){if(data.dropDelivery)login.active=false;else await deliverLogout(login);}
      if(data.expireChecks)await prisma.session.updateMany({data:{ssoCheckedUntil:new Date(0)}});
@@ -82,8 +96,8 @@ async function main(){
     return json(res,{},404);
    }
    if(req.headers.authorization!=='Bearer '+apiToken)return json(res,{},401);
-   if(url.pathname==='/api/v3/core/users/'){const username=url.searchParams.get('username'),list=users.filter(user=>!username||user.username===username);return json(res,{results:list,pagination:{current:1,next:0,total_pages:1,count:list.length}});}
-   const id=url.pathname.match(/^\/api\/v3\/core\/users\/(\d+)\/$/);if(id){const user=users.find(user=>user.pk===Number(id[1]));return json(res,user||{},user?200:404);}
+   if(url.pathname==='/api/v3/core/users/'){metrics.directoryReads++;const username=url.searchParams.get('username'),list=users.filter(user=>!username||user.username===username);return json(res,{results:list,pagination:{current:1,next:0,total_pages:1,count:list.length}});}
+   const id=url.pathname.match(/^\/api\/v3\/core\/users\/(\d+)\/$/);if(id){metrics.directoryReads++;const user=users.find(user=>user.pk===Number(id[1]));return json(res,user||{},user?200:404);}
    const event=url.pathname.match(/^\/api\/v3\/events\/events\/([^/]+)\/$/);if(event)return json(res,events.get(event[1])||{},events.has(event[1])?200:404);
    json(res,{},404);
   })().catch(()=>json(res,{error:'FIXTURE_ERROR'},500));});
@@ -92,7 +106,7 @@ async function main(){
    const upstream=httpRequest({hostname:'127.0.0.1',port:nodePort,path:req.url,method:req.method,headers:{...req.headers,'x-forwarded-proto':'https','x-real-ip':'127.0.0.1'}},reply=>{res.writeHead(reply.statusCode!,reply.headers);reply.pipe(res);});upstream.on('error',()=>{res.writeHead(502);res.end();});req.pipe(upstream);
   });
   await new Promise<void>(resolve=>proxy.listen(appPort,'127.0.0.1',resolve));
-  const standalone=await prepareStandalone('.next-build');
+  const standalone=await prepareStandalone(process.env.NEXT_BUILD_DIR || '.next-build');
   const logfile=await import('node:fs').then(fs=>fs.openSync('.local/sso-ui-server.log','w',0o600));
   const server=spawn(process.execPath,[join(standalone,'server.js')],{env,stdio:['ignore',logfile,logfile]});
   try{
@@ -100,7 +114,7 @@ async function main(){
     const response=await new Promise<number>(resolve=>{const request=httpRequest({hostname:'127.0.0.1',port:nodePort,path:'/api/health/live'},response=>{response.resume();resolve(response.statusCode||0);});request.on('error',()=>resolve(0));request.end();});
     if(response===200)break;if(attempt===99)throw Error('SSO_UI_START_FAILED');await new Promise(resolve=>setTimeout(resolve,200));
    }
-   const test=spawn('pnpm',['exec','playwright','test','-c','playwright.sso.config.ts',...process.argv.slice(2)],{env,stdio:'inherit'});
+   const test=spawn(resolve('node_modules/.bin/playwright'),['test','-c','playwright.sso.config.ts',...process.argv.slice(2)],{env,stdio:'inherit'});
    const result=await new Promise<number>(resolve=>test.on('exit',code=>resolve(code??1)));if(result)process.exitCode=result;
   }finally{
    server.kill('SIGTERM');await new Promise<void>(resolve=>{const timer=setTimeout(()=>{server.kill('SIGKILL');resolve();},3000);server.once('exit',()=>{clearTimeout(timer);resolve();});});

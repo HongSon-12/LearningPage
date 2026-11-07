@@ -2,9 +2,9 @@ import {RequestError} from "@/lib/errors";
 import type { Prisma } from "@prisma/client";
 import { canonicalCccd } from "@/lib/student-identity";
 import type { Actor } from "@/lib/permissions";
-import { classScope } from "@/lib/permissions";
+import { classScope, can } from "@/lib/permissions";
 export function studentScope(actor: Actor): Prisma.StudentWhereInput {
-  return actor.role !== "ADMIN"
+  return !(can(actor,"classes.all") && can(actor,"students.edit"))
     ? { registrations: { some: { class: classScope(actor) } } }
     : {};
 }

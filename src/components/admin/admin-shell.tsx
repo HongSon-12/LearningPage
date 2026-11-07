@@ -99,7 +99,7 @@ export function AdminShell({
   const navigation = (
     <nav aria-label="Điều hướng quản trị" className="space-y-1 p-3">
       {links
-        .filter((link) => (!link.admin || actor.role === "ADMIN") && can(actor, menuPermissions[link.href]))
+        .filter((link) => can(actor, menuPermissions[link.href]))
         .map(({ href, label, icon: Icon }) => {
           const active =
             href === "/"

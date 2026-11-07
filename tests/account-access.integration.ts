@@ -13,18 +13,21 @@ async function main(){
   const {persistUser}=await import("../src/lib/user-management");const {persistCustomRole}=await import("../src/lib/role-management");const {freshActor}=await import("../src/lib/rbac");const {can,classScope,landingPath}=await import("../src/lib/permissions");
   const {requestPasswordReset,completePasswordReset}=await import("../src/lib/password-reset");const {runPasswordResetEmailBatch}=await import("../src/lib/password-reset-worker");const {hashSecret}=await import("../src/lib/security");
   const admin=await prisma.user.create({data:{username:"admin",passwordHash:"unused",role:"ADMIN"}});
-  const role=await persistCustomRole(admin,{name:"Tiếp nhận lớp",baseRole:"CLASS_MANAGER",version:0,permissions:["classes.view","registrations.view"]});
-  await assert.rejects(()=>persistCustomRole(admin,{name:"Quản trị",baseRole:"CLASS_MANAGER",version:0,permissions:[]}));
-  await assert.rejects(()=>persistCustomRole(admin,{name:"Tiếp nhận lớp",baseRole:"CLASS_MANAGER",version:0,permissions:[]}));
-  await assert.rejects(()=>persistCustomRole(admin,{name:"Lạm quyền",baseRole:"ACCOUNTANT",version:0,permissions:["roles.manage"]}));
-  const input={id:"",username:"manager",password:"fixture-password-12",role:"CLASS_MANAGER" as const,active:true,email:"MANAGER@example.test",customRoleId:role.id};
+  const role=await persistCustomRole(admin,{name:"Tiếp nhận lớp",version:0,permissions:["dashboard.view","classes.view","registrations.view"]});
+  await assert.rejects(()=>persistCustomRole(admin,{name:"Quản trị",version:0,permissions:[]}));
+  await assert.rejects(()=>persistCustomRole(admin,{name:"Tiếp nhận lớp",version:0,permissions:[]}));
+  const delegatedRole=await persistCustomRole(admin,{name:"Điều phối",version:0,permissions:["roles.manage","users.manage","settings.manage"]});assert(delegatedRole.id);
+  const delegate=await prisma.user.create({data:{username:"delegated",passwordHash:"unused",role:"ACCOUNTANT",customRoleId:delegatedRole.id}});
+  const delegatedActor=await freshActor(delegate);assert(can(delegatedActor,"roles.manage"));assert(can(delegatedActor,"users.manage"));assert(can(delegatedActor,"settings.manage"));assert(!can(delegatedActor,"dashboard.view"));
+  assert.equal(landingPath(delegatedActor),"/users");
+  const input={id:"",username:"manager",password:"fixture-password-12",role:"ACCOUNTANT" as const,active:true,email:"MANAGER@example.test",customRoleId:role.id};
   const saved=await persistUser(admin,input);const user=await prisma.user.findUniqueOrThrow({where:{id:saved.id}});assert.equal(user.email,"manager@example.test");
   await assert.rejects(()=>persistUser(admin,{...input,username:"duplicate",email:"manager@example.test"}));
-  await assert.rejects(()=>persistUser(admin,{...input,username:"bad-role",role:"ACCOUNTANT"}));
+  await assert.rejects(()=>persistUser(admin,{...input,username:"bad-role",role:"CLASS_MANAGER"}));
   let actor=await freshActor(user);assert(can(actor,"dashboard.view"));assert(can(actor,"registrations.view"));assert(!can(actor,"classes.edit"));assert.deepEqual(classScope(actor),{managerId:user.id});assert.equal(landingPath(actor),"/");
-  await assert.rejects(()=>persistCustomRole(actor,{name:"Forged",baseRole:"CLASS_MANAGER",version:0,permissions:[]}));
-  await persistCustomRole(admin,{id:role.id,name:"Tiếp nhận",baseRole:"CLASS_MANAGER",version:role.version,permissions:[]});actor=await freshActor(user);assert(!can(actor,"classes.view"));assert(can(actor,"dashboard.view"));
-  await assert.rejects(()=>persistCustomRole(admin,{id:role.id,name:"Stale",baseRole:"CLASS_MANAGER",version:role.version,permissions:[]}));
+  await assert.rejects(()=>persistCustomRole(actor,{name:"Forged",version:0,permissions:[]}));
+  await persistCustomRole(admin,{id:role.id,name:"Tiếp nhận",version:role.version,permissions:[]});actor=await freshActor(user);assert(!can(actor,"classes.view"));assert(!can(actor,"dashboard.view"));assert.equal(landingPath(actor),"/access-denied");
+  await assert.rejects(()=>persistCustomRole(admin,{id:role.id,name:"Stale",version:role.version,permissions:[]}));
   await assert.rejects(()=>persistCustomRole(admin,{id:role.id,name:"Wrong base",baseRole:"ACCOUNTANT",version:2,permissions:[]}));
   const unknown=await requestPasswordReset("unknown@example.test","unknown");const first=await requestPasswordReset("manager@example.test","valid");assert.equal(first.message,unknown.message);
   let code="",deliveries=0;
@@ -60,7 +63,7 @@ async function main(){
   assert((await prisma.passwordResetChallenge.findUniqueOrThrow({where:{id:old.challengeId}})).usedAt);
   await prisma.user.update({where:{id:user.id},data:{active:false}});const before=deliveries;await runPasswordResetEmailBatch(send,1,next.jobId);assert.equal(deliveries,before);
   await assert.rejects(()=>freshActor(user));
-  console.log("PASS account access: additive migrations, unique email, custom role creation/assignment/scope/revocation/version checks, universal dashboard, generic recovery, hashed expiring single-use OTP, failed attempt lock, SMTP retry, password/session/login-lock reset, concurrent replay denial, changed email and disabled account invalidation");
+  console.log("PASS account access: additive migrations, unique email, custom role creation/assignment/scope/revocation/version checks, configurable dashboard and management grants, generic recovery, hashed expiring single-use OTP, failed attempt lock, SMTP retry, password/session/login-lock reset, concurrent replay denial, changed email and disabled account invalidation");
  }finally{await prisma?.$disconnect();assert.match(schema,/^ttcc_accounts_[a-f0-9]{32}$/);await pool.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);await pool.end();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

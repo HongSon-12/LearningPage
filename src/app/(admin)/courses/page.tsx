@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminCoursesPage() {
   const actor = await pageUser();
   assertPagePermission(actor, "classes.view");
-  const [result, managers] = await Promise.all([getClasses(), actor.role === "ADMIN" ? prisma.user.findMany({where:{role:"CLASS_MANAGER",active:true},select:{id:true,username:true},orderBy:{username:"asc"}}) : Promise.resolve(undefined)]);
+  const [result, managers] = await Promise.all([getClasses(), can(actor,"classes.assign") ? prisma.user.findMany({where:{active:true},select:{id:true,username:true},orderBy:{username:"asc"}}) : Promise.resolve(undefined)]);
   if (!result.success || !result.data)
     throw new Error("Không thể tải danh sách lớp.");
   return (
@@ -28,9 +28,10 @@ export default async function AdminCoursesPage() {
         initialClasses={result.data}
         managers={managers}
         today={new Date().toLocaleDateString("sv-SE", {timeZone:"Asia/Ho_Chi_Minh"})}
-        canCreate={actor.role === "ADMIN"}
-        canEdit={actor.role !== "ACCOUNTANT" && can(actor, "classes.edit")}
-        canSessions={actor.role !== "ACCOUNTANT" && can(actor, "sessions.manage")}
+        canCreate={can(actor,"classes.create")}
+        canEdit={can(actor, "classes.edit")}
+        canDelete={can(actor,"classes.delete")}
+        canSessions={can(actor, "sessions.manage")}
         canRegistrations={can(actor, "registrations.view")}
       />
     </div>

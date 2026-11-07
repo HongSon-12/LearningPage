@@ -2,18 +2,17 @@ import type { Prisma, UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {ssoEnabled} from "./auth-mode";
 import { assertPermission, type Actor } from "./permissions";
-import { adminOnly, defaultRolePermissions, isPermission, type PermissionKey } from "./permission-catalog";
+import { isPermission, type PermissionKey } from "./permission-catalog";
 import { RequestError } from "./security";
 export async function rolePermissions(role: UserRole, tx: Prisma.TransactionClient = prisma, customRoleId?: string | null): Promise<PermissionKey[]> {
-  if (role === "ADMIN") return [];
   if(customRoleId) {
     const custom=await tx.customRole.findUnique({where:{id:customRoleId}});
     if(!custom || custom.baseRole !== role) return [];
-    return custom.permissions.filter((key):key is PermissionKey=>isPermission(key) && !adminOnly(key) && defaultRolePermissions[role].includes(key));
+    return custom.permissions.filter((key):key is PermissionKey=>isPermission(key));
   }
   const policy = await tx.rolePolicy.findUnique({ where: { role }, select: { grants: { select: { permission: true } } } });
   // An absent or malformed policy does not restore a revoked default grant.
-  return (policy?.grants ?? []).flatMap(({ permission }) => isPermission(permission) && !adminOnly(permission) ? [permission] : []);
+  return (policy?.grants ?? []).flatMap(({ permission }) => isPermission(permission) ? [permission] : []);
 }
 export async function freshActor(actor: Pick<Actor, "id">, tx: Prisma.TransactionClient = prisma): Promise<Actor & { permissions: PermissionKey[] }> {
   const user = await tx.user.findUnique({ where: { id: actor.id }, select: { id: true, username: true, role: true, active: true, customRoleId:true, ssoUserId:true, ssoActive:true, appAccessGranted:true, customRole:{select:{name:true,baseRole:true}} } });

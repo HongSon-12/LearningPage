@@ -35,6 +35,7 @@ export default function ClassList({
   today,
   canCreate = true,
   canEdit = true,
+  canDelete = true,
   canSessions = true,
   canRegistrations = true,
 }: {
@@ -43,6 +44,7 @@ export default function ClassList({
   today: string;
   canCreate?: boolean;
   canEdit?: boolean;
+  canDelete?: boolean;
   canSessions?: boolean;
   canRegistrations?: boolean;
 }) {
@@ -160,6 +162,7 @@ export default function ClassList({
                 </Link>
               </Button>
             )}
+            {!canRegistrations&&!canSessions&&<Button asChild variant="action" size="row"><Link href={`/courses/${row.original.id}?tab=info`}>Thông tin</Link></Button>}
             {canEdit && (
               <Button
                 variant="action"
@@ -174,7 +177,7 @@ export default function ClassList({
                 <Edit2 />
               </Button>
             )}
-            {canCreate && (
+            {canDelete && (
               <Button
                 variant="danger-outline"
                 size="icon-row"
@@ -190,7 +193,7 @@ export default function ClassList({
         ),
       },
     ],
-    [canCreate, canEdit, canSessions, canRegistrations, today],
+    [canDelete, canEdit, canSessions, canRegistrations, today],
   );
   async function save(form: FormData) {
     setSaveBusy(true);

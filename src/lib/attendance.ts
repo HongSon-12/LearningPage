@@ -2,8 +2,8 @@ import type { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import { occupiedWhere, rosterTransaction } from "@/lib/admissions";
 import type { Actor } from "@/lib/permissions";
-import { assertPermission } from "@/lib/permissions";
-import { rolePermissions } from "./rbac";
+import { assertPermission, classScope } from "@/lib/permissions";
+import { transactionPermission } from "./rbac";
 import type { PermissionKey } from "./permission-catalog";
 import { RequestError } from "@/lib/security";
 import { sessionInput, type SessionInput } from "@/lib/session-input";
@@ -13,15 +13,7 @@ export async function attendanceActor(
   actor: Actor,
   permission: PermissionKey = "attendance.manage",
 ) {
-  const user = await tx.user.findUnique({
-    where: { id: actor.id },
-    select: { id: true, username: true, role: true, active: true, customRoleId:true },
-  });
-  if (!user?.active || !["ADMIN", "CLASS_MANAGER"].includes(user.role))
-    throw new RequestError("Không có quyền điểm danh.", 403);
-  const current = { ...user, permissions: await rolePermissions(user.role, tx, user.customRoleId) };
-  assertPermission(current, permission);
-  return current;
+  return transactionPermission(tx, actor, permission);
 }
 export async function attendanceClass(
   tx: Prisma.TransactionClient,
@@ -33,7 +25,7 @@ export async function attendanceClass(
   const course = await tx.class.findFirst({
     where: {
       id: classId,
-      ...(user.role === "CLASS_MANAGER" ? { managerId: user.id } : {}),
+      ...classScope(user),
     },
   });
   if (!course)

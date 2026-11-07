@@ -1,4 +1,5 @@
 "use server";
+import { requirePermission } from "@/lib/auth";
 import {RequestError} from "@/lib/errors";
 
 import { invalidatePublicClasses } from "@/lib/public-classes";
@@ -72,7 +73,7 @@ export async function createManualRegistration(
   method: "MANUAL" | "LATE",
 ) {
   try {
-    let user = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    let user = await requireUser();
     assertPermission(user, "registrations.create");
     if (!["MANUAL", "LATE"].includes(method))
       throw new RequestError("Hình thức đăng ký không hợp lệ.");
@@ -97,7 +98,7 @@ export async function transferRegistration(
   reason: string,
 ) {
   try {
-    const user = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    const user = await requireUser();
     assertPermission(user, "registrations.transfer");
     if (!reason.trim()) throw new RequestError("Vui lòng nhập lý do chuyển lớp.");
     await rosterTransaction(async (tx) => {
@@ -115,7 +116,7 @@ export async function updatePaymentStatus(
   paymentStatus: PaymentStatus,
 ) {
   try {
-    let user = await requireUser(["ADMIN", "ACCOUNTANT"]);
+    let user = await requireUser();
     assertPermission(user, "payments.manage");
     if (!Object.values(PaymentStatus).includes(paymentStatus))
       throw new RequestError("Trạng thái không hợp lệ.");
@@ -159,7 +160,7 @@ export async function updateRegistrationStatus(
   rejectionReason = "",
 ) {
   try {
-    let user = await requireUser(["ADMIN", "CLASS_MANAGER"]);
+    let user = await requireUser();
     assertPermission(user, "registrations.review");
     if (!Object.values(RegistrationStatus).includes(status))
       throw new RequestError("Trạng thái không hợp lệ.");
@@ -209,8 +210,12 @@ export async function updateRegistrationStatus(
 }
 export async function deleteRegistration(id: string) {
   try {
-    await requireUser(["ADMIN"]);
-    await rosterTransaction((tx) => tx.registration.delete({ where: { id } }));
+    const actor = await requirePermission("registrations.delete");
+    await rosterTransaction(async tx => {
+      const current=await transactionPermission(tx,actor,"registrations.delete");
+      await registrationFor(tx,id,current);
+      await tx.registration.delete({where:{id}});
+    });
     refresh();
     return { success: true };
   } catch (error) {
@@ -233,19 +238,6 @@ export async function updateRegistrationCodes(
       include: { class: true },
     });
     assertClassAccess(user, reg.class);
-    if (
-      user.role === "CLASS_MANAGER" &&
-      invoiceCode !== (reg.invoiceCode || "")
-    )
-      throw new RequestError("Chỉ Kế toán/Quản trị được sửa mã hóa đơn.");
-    if (
-      user.role === "ACCOUNTANT" &&
-      (certificateCode !== (reg.certificateCode || "") ||
-        confirmationNumber !== (reg.confirmationNumber || "") ||
-        certificateDeliveredDirect !== reg.certificateDeliveredDirect ||
-        certificateSentByPost !== reg.certificateSentByPost)
-    )
-      throw new RequestError("Kế toán chỉ được sửa thông tin hóa đơn.");
     await rosterTransaction(async (tx) => {
       user = await freshActor(user, tx);
       const currentReg = await registrationFor(tx, id, user);
@@ -256,10 +248,10 @@ export async function updateRegistrationCodes(
       await tx.registration.update({
         where: { id },
         data: {
-          ...(user.role !== "CLASS_MANAGER" && can(user, "invoices.manage")
+          ...(can(user, "invoices.manage")
             ? { invoiceCode: invoiceCode.trim() || null }
             : {}),
-          ...(user.role !== "ACCOUNTANT" && can(user, "certificates.manage")
+          ...(can(user, "certificates.manage")
             ? {
                 certificateCode: certificateCode.trim() || null,
                 confirmationNumber: confirmationNumber.trim() || null,

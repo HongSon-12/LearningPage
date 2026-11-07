@@ -17,5 +17,5 @@ export default function ClassNavigation({classId,canSessions,canRecords}:{classI
     {key:"documents",label:"Chứng từ",icon:ReceiptText,href:`/courses/${classId}?tab=documents`},
     {key:"info",label:"Thông tin",icon:Settings2,href:`/courses/${classId}?tab=info`},
   ];
-  return <nav aria-label="Công việc của lớp" className="flex flex-wrap gap-2">{items.filter(item=>canRecords || item.key === "sessions").map(item=><Button key={item.key} asChild variant={active===item.key?"default":"outline"}><Link scroll={false} href={item.href} aria-current={active===item.key?"page":undefined}><TabLabel icon={item.icon} label={item.label} /></Link></Button>)}</nav>;
+  return <nav aria-label="Công việc của lớp" className="flex flex-wrap gap-2">{items.filter(item=>canRecords || item.key === "sessions" || item.key === "info").map(item=><Button key={item.key} asChild variant={active===item.key?"default":"outline"}><Link scroll={false} href={item.href} aria-current={active===item.key?"page":undefined}><TabLabel icon={item.icon} label={item.label} /></Link></Button>)}</nav>;
 }

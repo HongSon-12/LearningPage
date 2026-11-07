@@ -42,15 +42,12 @@ const columns = [
   ["certificateSentByPost", "Đã gửi GCN qua bưu điện"],
   ["registrationMethod", "Hình thức đăng ký"],
 ] as const;
-const accountingFields = ["id", "classCode", "invoiceCode"];
 function writable(key: string, actor: Actor) {
-  const legacy = actor.role === "ADMIN" || (actor.role === "ACCOUNTANT" ? accountingFields.includes(key) : !["invoiceCode", "paymentStatus"].includes(key));
-  if (!legacy) return false;
   if (["id", "classCode"].includes(key)) return true;
   if (key === "invoiceCode") return can(actor, "invoices.manage");
   if (["certificateCode", "confirmationNumber", "certificateDeliveredDirect", "certificateSentByPost"].includes(key)) return can(actor, "certificates.manage");
   if (["status", "rejectionReason"].includes(key)) return can(actor, "registrations.review");
-  if (key === "paymentStatus") return actor.role === "ADMIN";
+  if (key === "paymentStatus") return can(actor,"payments.manage");
   return can(actor, "registrations.create");
 }
 export async function excelExport(
@@ -63,7 +60,7 @@ export async function excelExport(
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet("Học viên");
   const allowed =
-    (actor.role === "ACCOUNTANT" || !can(actor, "students.identity"))
+    (!can(actor, "students.identity"))
       ? columns.filter(
           ([key]) =>
             ![
@@ -213,7 +210,7 @@ export async function importExcel(
             if (existing.classId !== course.id)
               throw new RequestError("Không được chuyển lớp qua import.");
           }
-          if (!existing && (actor.role === "ACCOUNTANT" || !can(actor, "registrations.create")))
+          if (!existing && !can(actor, "registrations.create"))
             throw new RequestError("Kế toán không được tạo hồ sơ.");
           for (const [key, v] of Object.entries(data)) {
             if (!v || writable(key, actor)) continue;
@@ -289,7 +286,7 @@ export async function importExcel(
                   : String(v ?? "");
               return data[key] && data[key] !== text;
             });
-          if (existing && actor.role !== "ACCOUNTANT" && personalChanged) {
+          if (existing && can(actor,"registrations.create") && personalChanged) {
             const merged = registrationData({
               classId: course.id,
               fullName: data.fullName || existing.fullName,
@@ -334,7 +331,7 @@ export async function importExcel(
             !["PENDING", "PAID", "CANCELLED"].includes(paymentStatus)
           )
             throw new RequestError("Trạng thái không hợp lệ.");
-          if (data.status && actor.role !== "ACCOUNTANT") {
+          if (data.status && can(actor,"registrations.review")) {
             if (
               status === "REJECTED" &&
               !data.rejectionReason &&
@@ -347,7 +344,7 @@ export async function importExcel(
                 ? data.rejectionReason || reg.rejectionReason
                 : null;
           }
-          if (data.paymentStatus && actor.role === "ADMIN")
+          if (data.paymentStatus && can(actor,"payments.manage"))
             patch.paymentStatus = paymentStatus as
               | "PENDING"
               | "PAID"

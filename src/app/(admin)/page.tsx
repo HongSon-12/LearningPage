@@ -24,8 +24,8 @@ export default async function AdminDashboard() {
   viewClasses ? prisma.class.count({where:{...scope,status:"OPEN"}}) : Promise.resolve(0),
   viewRegistrations ? prisma.registration.findMany({where:registrationScope,take:6,orderBy:{createdAt:"desc"},select:{id:true,classId:true,fullName:true,phone:true,status:true,paymentStatus:true,createdAt:true,class:{select:{code:true,name:true}}}}) : Promise.resolve([]),
   viewClasses ? prisma.class.findMany({where:{...scope,status:"OPEN",endDate:{gte:today}},take:4,orderBy:{startDate:"asc"},select:{id:true,code:true,name:true,startDate:true,capacity:true,_count:{select:{registrations:{where:occupiedWhere}}}}}) : Promise.resolve([]),
-  actor.role === "ADMIN" ? prisma.trackingEvent.groupBy({by:["source"],_count:{sessionId:true},where:{eventName:"page_load"}}) : Promise.resolve([]),
-  actor.role === "ADMIN" ? prisma.trackingEvent.groupBy({by:["eventName"],_count:{sessionId:true},where:{eventName:{in:eventOrder}}}) : Promise.resolve([]),
+  can(actor,"dashboard.analytics") ? prisma.trackingEvent.groupBy({by:["source"],_count:{sessionId:true},where:{eventName:"page_load"}}) : Promise.resolve([]),
+  can(actor,"dashboard.analytics") ? prisma.trackingEvent.groupBy({by:["eventName"],_count:{sessionId:true},where:{eventName:{in:eventOrder}}}) : Promise.resolve([]),
  ]);
  const sourceNames:Record<string,string>={direct:"Trực tiếp",facebook:"Facebook",zalo:"Zalo",fanpage:"Fanpage"};
  const sources=new Map<string,number>();
@@ -47,6 +47,6 @@ export default async function AdminDashboard() {
    </aside>
   </div>}
   {!viewClasses && !viewRegistrations && <p className="rounded-xl border bg-card p-6 text-muted-foreground">Bạn đã đăng nhập. Liên hệ quản trị để được cấp quyền nghiệp vụ và phân công lớp phù hợp.</p>}
-  {actor.role === "ADMIN" && <section className="space-y-4"><div><h2 className="text-lg font-semibold text-slate-900">Thống kê truy cập & đăng ký</h2><p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500">Số liệu toàn bộ thời gian</p></div><DashboardCharts sourceData={sourceData} funnelData={funnelData}/></section>}
+  {can(actor,"dashboard.analytics") && <section className="space-y-4"><div><h2 className="text-lg font-semibold text-slate-900">Thống kê truy cập & đăng ký</h2><p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500">Số liệu toàn bộ thời gian</p></div><DashboardCharts sourceData={sourceData} funnelData={funnelData}/></section>}
  </div>;
 }

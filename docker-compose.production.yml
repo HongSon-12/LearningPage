@@ -5,6 +5,8 @@ name: learning-production
 x-runtime: &runtime
   NODE_ENV: production
   AUTH_MODE: sso
+  # Dedicated container port; Nginx reaches it over PROXY_NETWORK (no host publish).
+  PORT: "13081"
   PG_HOST: ${PG_HOST:-cap-cuu-115-db}
   PG_PORT: ${PG_PORT:-5432}
   DATABASE_URL: ${DATABASE_URL:?Set production DATABASE_URL for the dedicated existing database}
@@ -28,15 +30,16 @@ x-sso: &sso
   SSO_WEBHOOK_SECRET: ${SSO_WEBHOOK_SECRET:?Set the webhook Bearer secret}
 
 services:
-  app:
-    image: learning-web:${RELEASE_TAG:-local}
+  # Do not use service name app: the shared proxy already routes app:3000.
+  edu-app:
+    image: learning-web:${RELEASE_TAG:-latest}
     build:
       context: .
       target: runner
     environment:
       <<: [*runtime, *sso]
     expose:
-      - "3000"
+      - "13081"
     networks:
       database:
         aliases: [edu-app]
@@ -45,7 +48,7 @@ services:
     volumes:
       - uploads:/data/uploads
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:13081/api/health/ready',{signal:AbortSignal.timeout(4000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 30s
@@ -61,7 +64,7 @@ services:
         max-file: "3"
 
   ops:
-    image: learning-ops:${RELEASE_TAG:-local}
+    image: learning-ops:${RELEASE_TAG:-latest}
     build:
       context: .
       target: operations
@@ -83,7 +86,7 @@ services:
         max-file: "3"
 
   email-worker:
-    image: learning-ops:${RELEASE_TAG:-local}
+    image: learning-ops:${RELEASE_TAG:-latest}
     build:
       context: .
       target: operations
@@ -99,7 +102,7 @@ services:
       start_period: 60s
       retries: 3
     depends_on:
-      app:
+      edu-app:
         condition: service_healthy
     init: true
     stop_grace_period: 5m

@@ -179,13 +179,13 @@ export default function UsersForm({ users, currentUserId, customRoles, ssoMode=f
   const [roleFilter, setRoleFilter] = useState("");
   const [status, setStatus] = useState("");
   const selected = users.find(user=>user.id === editor?.id) || editor;
-  const visibleUsers = users.filter(user => (!roleFilter || user.role === roleFilter) && (!status || (status === "active" ? user.active : !user.active)) && user.username.toLowerCase().includes(query.toLowerCase()));
+  const visibleUsers = users.filter(user => (!roleFilter || (roleFilter.startsWith("custom:") ? user.customRoleId === roleFilter.slice(7) : !user.customRoleId && user.role === roleFilter)) && (!status || (status === "active" ? user.active : !user.active)) && user.username.toLowerCase().includes(query.toLowerCase()));
   return <div className="grid items-start gap-5 lg:grid-cols-[minmax(250px,3fr)_minmax(0,7fr)]" data-slot="master-detail">
     <aside className="min-w-0 space-y-4 rounded-xl border bg-card p-4 lg:sticky lg:top-0" aria-label="Chọn tài khoản" data-slot="master-pane">
       <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Tài khoản <span className="text-sm font-normal text-muted-foreground">({users.length})</span></h2>{!ssoMode && <Button id="user-create" aria-label="Thêm tài khoản" disabled={busy} onClick={()=>{setEditor(null);setRevision(value=>value+1);}}><Plus />Thêm</Button>}</div>
       <div className="space-y-2"><Label htmlFor="users-query">Tìm kiếm</Label><Input id="users-query" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tên đăng nhập…" /></div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-        <div className="space-y-2"><Label htmlFor="users-role">Lọc vai trò</Label><SelectField id="users-role" value={roleFilter} onValueChange={setRoleFilter}><SelectOption value="">Tất cả</SelectOption>{Object.entries(roleLabels).map(([value,label])=><SelectOption key={value} value={value}>{label}</SelectOption>)}</SelectField></div>
+        <div className="space-y-2"><Label htmlFor="users-role">Lọc vai trò</Label><SelectField id="users-role" value={roleFilter} onValueChange={setRoleFilter}><SelectOption value="">Tất cả</SelectOption>{Object.entries(roleLabels).map(([value,label])=><SelectOption key={value} value={value}>{label}</SelectOption>)}{customRoles.map(item=><SelectOption key={item.id} value={`custom:${item.id}`}>{item.name}</SelectOption>)}</SelectField></div>
         <div className="space-y-2"><Label htmlFor="users-status">Trạng thái</Label><SelectField id="users-status" value={status} onValueChange={setStatus}><SelectOption value="">Tất cả</SelectOption><SelectOption value="active">Hoạt động</SelectOption><SelectOption value="locked">Đã khóa</SelectOption></SelectField></div>
       </div>
       <p role="status" className="text-xs text-muted-foreground">{visibleUsers.length} tài khoản phù hợp</p>

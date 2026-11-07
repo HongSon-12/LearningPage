@@ -45,7 +45,7 @@ export default function RegistrationTools({
   const actor = { id: "", username: "", role, permissions };
   const canImport = can(actor, "excel.import");
   const canExport = can(actor, "excel.export");
-  const canCreate = allowCreate && role !== "ACCOUNTANT" && can(actor, "registrations.create");
+  const canCreate = allowCreate && can(actor, "registrations.create");
   const [importOpen, setImportOpen] = useState(false);
   const router = useRouter();
   const [manual, setManual] = useState(false);

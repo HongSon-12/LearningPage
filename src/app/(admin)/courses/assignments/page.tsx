@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { pageUser } from "@/lib/auth";
+import { pagePermission } from "@/lib/auth";
 export default async function AssignmentsPage() {
-  await pageUser(["ADMIN"]);
+  await pagePermission("classes.assign");
   redirect("/courses");
 }

@@ -1,9 +1,9 @@
 import {RequestError} from "@/lib/errors";
 import type { Prisma } from "@prisma/client";
-import { assertClassAccess, type Actor } from "@/lib/permissions";
+import { assertClassAccess, assertPermission, type Actor } from "@/lib/permissions";
 import { availableClass, lockClasses, registrationData, preventDuplicate, validateProgram } from "@/lib/admissions";
 export async function transferInTransaction(tx: Prisma.TransactionClient, user: Actor, id: string, classId: string, reason: string) {
- if (!["ADMIN","CLASS_MANAGER"].includes(user.role)) throw new RequestError("Bạn không có quyền chuyển lớp.");
+ assertPermission(user,"registrations.transfer");
  if (!reason.trim()) throw new RequestError("Vui lòng nhập lý do chuyển lớp.");
 
       const reg = await tx.registration.findUniqueOrThrow({where:{id},include:{class:true}}); assertClassAccess(user,reg.class);

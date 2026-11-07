@@ -208,13 +208,13 @@ export default function RegistrationList({
   const [delivered, setDelivered] = useState(false);
   const [posted, setPosted] = useState(false);
   const actor = { id: "", username: "", role, permissions };
-  const canManage = role !== "ACCOUNTANT" && can(actor, "registrations.review");
-  const canTransfer = role !== "ACCOUNTANT" && can(actor, "registrations.transfer");
-  const canIdentity = role !== "ACCOUNTANT" && can(actor, "students.identity");
+  const canManage = can(actor, "registrations.review");
+  const canTransfer = can(actor, "registrations.transfer");
+  const canIdentity = can(actor, "students.identity");
   const canReceipt = can(actor, "receipts.view");
-  const canInvoice = (role === "ADMIN" || role === "ACCOUNTANT") && can(actor, "invoices.manage");
-  const canCertificate = role !== "ACCOUNTANT" && can(actor, "certificates.manage");
-  const canPay = (role === "ADMIN" || role === "ACCOUNTANT") && can(actor, "payments.manage");
+  const canInvoice = can(actor, "invoices.manage");
+  const canCertificate = can(actor, "certificates.manage");
+  const canPay = can(actor, "payments.manage");
   useEffect(()=>{
     const input:RegistrationFilter={query,classId:fixedClassId || classId,type,batch,state:state as RegistrationFilter["state"],document:(view==="documents"?documentFilter:"") as RegistrationFilter["document"],page:pageIndex,...sorting};
     const key=JSON.stringify({...registrationFilter,...input});
@@ -458,7 +458,7 @@ export default function RegistrationList({
               <Eye />
               {mode === "review" ? "Kiểm tra" : view === "documents" ? "Cập nhật" : "Chi tiết"}
             </Button>
-            {role === "ADMIN" && mode === "manage" && view !== "documents" && (
+            {can(actor,"registrations.delete") && mode === "manage" && view !== "documents" && (
               <Button
                 variant="danger-outline"
                 size="icon-row"

@@ -47,6 +47,8 @@ model Session {
   ssoAuthAt DateTime?
   ssoCheckedUntil DateTime?
   ssoAccessToken String?
+  ssoAccessTokenExpiresAt DateTime?
+  ssoRefreshToken String?
   ssoIdToken String?
   @@index([ssoIssuer, ssoSid])
   @@index([ssoIssuer, ssoSubject])

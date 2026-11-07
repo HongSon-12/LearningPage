@@ -39,7 +39,7 @@ export async function queryStudentDirectory(
           { fullName: { contains: filter.query, mode: "insensitive" } },
           { phone: { contains: filter.query } },
           { email: { contains: filter.query, mode: "insensitive" } },
-          ...(actor.role !== "ACCOUNTANT" && can(actor, "students.identity")
+          ...(can(actor, "students.identity")
             ? [{ cccd: { contains: filter.query } }]
             : []),
         ],
@@ -103,7 +103,7 @@ export async function queryStudentDirectory(
           fullName: row.fullName,
           dob: row.dob.toISOString().slice(0, 10),
           cccd: row.cccd
-            ? (actor.role === "ACCOUNTANT" || !can(actor, "students.identity"))
+            ? (!can(actor, "students.identity"))
               ? `********${row.cccd.slice(-4)}`
               : row.cccd
             : null,

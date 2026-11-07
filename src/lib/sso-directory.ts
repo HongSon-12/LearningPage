@@ -59,8 +59,9 @@ export async function syncDirectoryUser(input: DirectoryUser) {
 }
 export async function syncAllSsoUsers(apply = false) {
   const users: DirectoryUser[] = [], seen = new Set<number>();
+  // Small pages keep bulk sync within the shared SSO API's five-second timeout.
   for (let page = 1; page <= 1000; page++) {
-    const response = z.object({ pagination: z.object({ current: z.number(), next: z.number().nullable(), total_pages: z.number(), count: z.number() }), results: z.array(directoryUserSchema) }).parse(await ssoApi(`core/users/?page=${page}&page_size=100&include_groups=false&include_roles=false`));
+    const response = z.object({ pagination: z.object({ current: z.number(), next: z.number().nullable(), total_pages: z.number(), count: z.number() }), results: z.array(directoryUserSchema) }).parse(await ssoApi(`core/users/?page=${page}&page_size=25&include_groups=false&include_roles=false`));
     if (response.pagination.current !== page) throw Error("SSO_PAGINATION_INVALID");
     for (const user of response.results) { if (seen.has(user.pk)) throw Error("SSO_PAGINATION_INVALID"); seen.add(user.pk); users.push(user); }
     if (!response.pagination.next) { if (users.length !== response.pagination.count) throw Error("SSO_PAGINATION_INCOMPLETE"); break; }

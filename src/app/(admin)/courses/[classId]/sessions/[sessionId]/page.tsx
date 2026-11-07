@@ -13,7 +13,7 @@ export default async function AttendancePage({
 }: {
   params: Promise<{ classId: string; sessionId: string }>;
 }) {
-  const actor = await pageUser(["ADMIN", "CLASS_MANAGER"]);
+  const actor = await pageUser();
   assertPagePermission(actor, "attendance.manage");
   const { classId, sessionId } = await params;
   const session = await prisma.classSession.findFirst({

@@ -6,7 +6,7 @@ import { classWorkspace } from "@/lib/class-workspace";
 import SessionList from "./sessions/SessionList";
 export const dynamic = "force-dynamic";
 export default async function ClassSessions({classId}:{classId:string}) {
-  const actor = await pageUser(["ADMIN", "CLASS_MANAGER"]);
+  const actor = await pageUser();
   assertPagePermission(actor, "sessions.manage");
   await classWorkspace(classId);
   const sessions = await prisma.classSession.findMany({
