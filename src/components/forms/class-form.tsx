@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "sonner";
 import { SelectOption } from "@/components/forms/select-field";
 
 import { useForm } from "react-hook-form";
@@ -113,9 +114,12 @@ export function ClassForm({
     );
     try {
       const result = await onSave(form);
-      if (!result.success)
+      if (!result.success) {
         setError("root", { message: result.error || "Không thể lưu lớp học." });
+        toast.error(result.error || "Không thể lưu lớp học.");
+      }
     } catch {
+      toast.error("Không thể lưu lớp học. Thông tin đã nhập vẫn được giữ.");
       setError("root", {
         message: "Không thể lưu lớp học. Thông tin đã nhập vẫn được giữ.",
       });

@@ -285,6 +285,7 @@ export default function RegistrationList({
           router.refresh();
         }
       } catch {
+        toast.error("Không thể thực hiện thao tác. Vui lòng thử lại.");
         setNotice({
           text: "Không thể thực hiện thao tác. Vui lòng thử lại.",
           success: false,

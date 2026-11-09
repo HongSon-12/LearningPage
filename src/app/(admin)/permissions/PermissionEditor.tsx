@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "sonner";
 import { useState } from "react";
 import { ShieldCheck, Save, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,9 +29,10 @@ export default function PermissionEditor({policies,customRoles}:{policies:Record
       if(result.success){
         const id="id" in result && typeof result.id==="string"?result.id:entry.id;const next={...entry,id,version:result.version};
         setSaved(previous=>({...previous,[id]:next}));setDrafts(previous=>{const copy={...previous};delete copy.new;return {...copy,[id]:next};});setSelectedId(id);
+        toast.success("Đã lưu quyền. Quyền mới có hiệu lực từ yêu cầu tiếp theo.");
         setNotice({success:true,text:"Đã lưu. Quyền mới có hiệu lực từ yêu cầu tiếp theo."});
-      }else setNotice({success:false,text:result.error});
-    }catch{setNotice({success:false,text:"Không thể lưu. Các lựa chọn vẫn được giữ."});}finally{setBusy(false);}
+      }else {toast.error(result.error);setNotice({success:false,text:result.error});}
+    }catch{toast.error("Không thể lưu. Các lựa chọn vẫn được giữ.");setNotice({success:false,text:"Không thể lưu. Các lựa chọn vẫn được giữ."});}finally{setBusy(false);}
   }
   return <div className="grid items-start gap-5 lg:grid-cols-[minmax(250px,3fr)_minmax(0,7fr)]" data-slot="master-detail">
     <aside className="space-y-4 rounded-xl border bg-card p-4 lg:sticky lg:top-0" data-slot="master-pane" aria-label="Chọn vai trò">

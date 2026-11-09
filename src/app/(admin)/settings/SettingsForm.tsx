@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "sonner";
 import { useState, type FormEvent } from "react";
 import { Save, Loader2, Landmark, Info, CheckCircle } from "lucide-react";
 import { updateSettings } from "@/app/actions/settings";
@@ -11,8 +12,8 @@ export default function SettingsForm({initialData}:{initialData:SettingData}) {
  const [busy,setBusy]=useState(false);const [message,setMessage]=useState<{text:string;success:boolean}|null>(null);
  async function submit(event:FormEvent<HTMLFormElement>) {
   event.preventDefault();setBusy(true);setMessage(null);
-  try {const result=await updateSettings(new FormData(event.currentTarget));setMessage({text:result.success?"Đã lưu cấu hình thanh toán.":result.error||"Không thể lưu cấu hình.",success:result.success});}
-  catch {setMessage({text:"Không thể lưu cấu hình. Vui lòng thử lại.",success:false});}finally{setBusy(false);}
+  try {const result=await updateSettings(new FormData(event.currentTarget));(result.success?toast.success:toast.error)(result.success?"Đã lưu cấu hình thanh toán.":result.error||"Không thể lưu cấu hình.");setMessage({text:result.success?"Đã lưu cấu hình thanh toán.":result.error||"Không thể lưu cấu hình.",success:result.success});}
+  catch {toast.error("Không thể lưu cấu hình. Vui lòng thử lại.");setMessage({text:"Không thể lưu cấu hình. Vui lòng thử lại.",success:false});}finally{setBusy(false);}
  }
  const example=paymentReference("CD2026", "Nguyễn Văn A");
  return <form onSubmit={submit} className="space-y-5">

@@ -30,7 +30,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { Toaster } from "@/components/ui/sonner";
 import { PageTitleContext, type PageTitle } from "./page-heading";
 import { cn } from "@/lib/utils";
 
@@ -186,7 +185,6 @@ export function AdminShell({
             <div className="w-full min-w-0 p-4 lg:p-5"><NavigationContent>{children}</NavigationContent></div>
           </main>
         </div>
-        <Toaster position="top-right" />
       </div>
     </PageTitleContext.Provider></NavigationProvider>
   );

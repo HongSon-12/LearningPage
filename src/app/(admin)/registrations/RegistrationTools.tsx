@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "sonner";
 import { can } from "@/lib/permissions";
 import type { PermissionKey } from "@/lib/permission-catalog";
 import { DateTimePicker } from "@/components/forms/date-time-picker";
@@ -80,8 +81,10 @@ export default function RegistrationTools({
       const result = await res.json();
       if (!result.success) throw new Error(result.error);
       setUploads((v) => ({ ...v, [key]: result.url }));
+      toast.success("Đã tải lên tài liệu.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Không thể tải file.");
+      toast.error(e instanceof Error ? e.message : "Không thể tải file.");
     } finally {
       setBusy(false);
     }
@@ -110,9 +113,11 @@ export default function RegistrationTools({
       setManual(false);
       setUploads({});
       setMessage("Đã thêm học viên.");
+      toast.success("Đã thêm học viên.");
       router.refresh();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Không thể lưu.");
+      toast.error(e instanceof Error ? e.message : "Không thể lưu.");
     } finally {
       setBusy(false);
     }
@@ -132,15 +137,17 @@ export default function RegistrationTools({
       });
       const result = await res.json();
       if (!result.success) throw new Error(result.error);
-      if (mode === "preview") setPreview(result.report);
+      if (mode === "preview") {setPreview(result.report);toast.success("Đã kiểm tra file. Vui lòng xem trước trước khi lưu.");}
       else {
         setPreview(null);
         setFile(null);
         setMessage(`Đã lưu ${result.report.length} dòng.`);
+        toast.success(`Đã lưu ${result.report.length} dòng.`);
         router.refresh();
       }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Không thể xử lý Excel.");
+      toast.error(e instanceof Error ? e.message : "Không thể xử lý Excel.");
       setPreview(null);
     } finally {
       setBusy(false);

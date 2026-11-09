@@ -13,6 +13,9 @@ export function Toaster(props: ToasterProps) {
   return (
     <Sonner
       theme="light"
+      position="bottom-right"
+      duration={5000}
+      toastOptions={{ style: { overflowWrap: "anywhere" } }}
       richColors
       closeButton
       icons={{

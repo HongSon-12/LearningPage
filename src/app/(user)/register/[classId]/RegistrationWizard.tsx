@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "sonner";
 import { SelectField, SelectOption } from "@/components/forms/select-field";
 
 import { DateTimePicker } from "@/components/forms/date-time-picker";
@@ -102,7 +103,10 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
     } catch {}
   }, []);
 
-  const handleNext = () => setStep((s) => Math.min(s + 1, 3));
+  const handleNext = () => {
+    setStep((s) => Math.min(s + 1, 3));
+    toast.success("Đã xác nhận lớp học. Tiếp tục điền thông tin cá nhân.");
+  };
 
   const handleFileUpload = async (
     file: File,
@@ -158,7 +162,8 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
     e.preventDefault();
     if (!identityReady || !formData.gender || isLoading || uploadingField) return;
     if(classData.courseType !== "COMMUNITY_FIRST_AID" && (!formData.idPhotoUrl || !formData.degreeUrl)) {
-      setSubmitError("Vui lòng thêm ảnh mặt trước CCCD và văn bằng/bằng lái xe trước khi tiếp tục.");return;
+      setSubmitError("Vui lòng thêm ảnh mặt trước CCCD và văn bằng/bằng lái xe trước khi tiếp tục.");
+      toast.error("Vui lòng thêm ảnh mặt trước CCCD và văn bằng/bằng lái xe trước khi tiếp tục.");return;
     }
     setIsLoading(true);
 
@@ -206,10 +211,13 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
           }
         } catch {}
         setStep(3); // Move to Payment step
+        toast.success("Đã lưu thông tin đăng ký. Vui lòng xem hướng dẫn thanh toán.");
       } else {
         setSubmitError(res.error || "Đã xảy ra lỗi.");
+        toast.error(res.error || "Chưa lưu được thông tin. Vui lòng thử lại.");
       }
     } catch {
+      toast.error("Chưa lưu được thông tin. Vui lòng thử lại; thông tin đã nhập vẫn được giữ.");
       setSubmitError(
         "Lỗi cần kiểm tra lại. Vui lòng thử lại; thông tin đã nhập vẫn được giữ.",
       );
@@ -218,9 +226,13 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert("Đã sao chép: " + text);
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Đã sao chép thông tin chuyển khoản.");
+    } catch {
+      toast.error("Không thể sao chép. Vui lòng sao chép thủ công.");
+    }
   };
 
   // Generate VietQR URL
@@ -569,7 +581,14 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
 
             <button
               disabled={Boolean(uploadingField)}
-              onClick={() => setIsCompleted(true)}
+              onClick={() => {
+                if (!registrationId) {
+                  toast.error("Chưa lưu được thông tin đăng ký. Vui lòng thử lại.");
+                  return;
+                }
+                setIsCompleted(true);
+                toast.success("Đã tiếp nhận đăng ký. Hồ sơ và thanh toán đang chờ trung tâm kiểm tra.");
+              }}
               className="w-full py-4 bg-[var(--color-brand-600)] hover:bg-[var(--color-brand-700)] text-white font-bold rounded-xl shadow-lg shadow-blue-500/30 transition-all flex justify-center items-center mt-8"
             >
               Lưu / Hoàn tất đăng ký

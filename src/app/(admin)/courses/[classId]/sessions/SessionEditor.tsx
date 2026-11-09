@@ -43,12 +43,14 @@ export default function SessionEditor({
       const result = await saveSession(classId, session?.id || null, input);
       if (!result.success) {
         setError("root", { message: result.error });
+        toast.error(result.error);
         return;
       }
       toast.success("Đã lưu buổi học.");
       onClose();
       router.refresh();
     } catch {
+      toast.error("Không thể lưu buổi học. Vui lòng thử lại.");
       setError("root", {
         message: "Không thể lưu buổi học. Vui lòng thử lại.",
       });

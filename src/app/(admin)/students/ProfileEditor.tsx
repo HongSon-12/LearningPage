@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "sonner";
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { confirmStudentProfile } from "@/app/actions/student";
@@ -31,12 +32,14 @@ export default function ProfileEditor({
         new FormData(event.currentTarget),
       );
       if (result.success) {
+        toast.success("Đã lưu hồ sơ học viên. Các mã tra cứu cũ đã được vô hiệu hóa.");
         setMessage(
           "Đã lưu hồ sơ học viên. Các mã tra cứu cũ đã được vô hiệu hóa.",
         );
         router.refresh();
-      } else setMessage(result.error || "Không thể lưu hồ sơ.");
+      } else {toast.error(result.error || "Không thể lưu hồ sơ.");setMessage(result.error || "Không thể lưu hồ sơ.");}
     } catch {
+      toast.error("Không thể lưu hồ sơ. Vui lòng thử lại.");
       setMessage("Không thể lưu hồ sơ. Vui lòng thử lại.");
     } finally {
       setBusy(false);

@@ -69,12 +69,14 @@ function AccountEditor({
       const result = await saveUser(form);
       if (!result.success) {
         setError("root", { message: result.error });
+        toast.error(result.error);
         return;
       }
       toast.success("Đã lưu tài khoản.");
       reset({...values,password:""});
       onDone(Boolean(result.signInAgain), {id:result.id,username:values.username,role:values.role,active:ssoMode ? values.active && Boolean(user?.ssoActive) : values.active,email:values.email,customRoleId:values.customRoleId,...(ssoMode ? {ssoUserId:user?.ssoUserId,ssoActive:user?.ssoActive,appAccessGranted:values.active}:{})});
     } catch {
+      toast.error("Không thể lưu tài khoản. Vui lòng thử lại.");
       setError("root", {
         message: "Không thể lưu tài khoản. Vui lòng thử lại.",
       });

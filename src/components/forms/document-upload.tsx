@@ -1,4 +1,5 @@
 "use client";
+import { toast } from "sonner";
 import { useEffect,useId,useRef,useState } from "react";
 import { Camera,Upload,Check,Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,9 +14,9 @@ export function DocumentUpload({label,uploaded,busy,disabled,onUpload}:{label:st
   useEffect(()=>{if(camera&&video.current&&stream.current){video.current.srcObject=stream.current;void video.current.play().catch(()=>{setError("Không phát được camera. Bạn có thể tải ảnh lên.");stop();});}},[camera]);
   function changeOpen(value:boolean){if(!value)stop();setOpen(value);}
   async function upload(file:File){
-    const invalid=uploadFileError(file);if(invalid){setError(invalid);return;}
+    const invalid=uploadFileError(file);if(invalid){setError(invalid);toast.error(invalid);return;}
     stop();setOpen(false);setPending(true);setError("");
-    try{await onUpload(file);}catch(error){setError(error instanceof Error?error.message:"Chưa tải được file. Hãy thử lại.");}finally{setPending(false);}
+    try{await onUpload(file);toast.success("Đã tải lên tài liệu.");}catch(error){const message=error instanceof Error?error.message:"Chưa tải được file. Hãy thử lại.";setError(message);toast.error(message);}finally{setPending(false);}
   }
   async function startCamera(){
     setError("");
