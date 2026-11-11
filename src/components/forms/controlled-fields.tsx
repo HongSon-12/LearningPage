@@ -6,6 +6,7 @@ import {
   type FieldPath,
 } from "react-hook-form";
 import type { ComponentProps } from "react";
+import { MoneyInput } from "./money-input";
 import { SelectField } from "./select-field";
 import { DateTimePicker } from "./date-time-picker";
 import { Field, FieldLabel, FieldError } from "@/components/ui/field";
@@ -76,4 +77,16 @@ export function ControlledDateTimeField<T extends FieldValues>({
       </FieldError>
     </Field>
   );
+}
+
+export function ControlledMoneyField<T extends FieldValues>({
+  name, control, label, id, required,
+}: Binding<T> & { label: string; id?: string; required?: boolean }) {
+  const { field, fieldState } = useController({ name, control });
+  const fieldId = id ?? name;
+  return <Field data-invalid={Boolean(fieldState.error)} className="gap-2">
+    <FieldLabel htmlFor={fieldId}>{label}{required && <span aria-hidden="true" className="text-destructive">*</span>}</FieldLabel>
+    <MoneyInput id={fieldId} name={name} ref={node => field.ref(node)} required={required} value={String(field.value ?? "")} onValueChange={field.onChange} onBlur={field.onBlur} aria-invalid={Boolean(fieldState.error)} aria-describedby={fieldState.error ? `${fieldId}-error` : undefined} />
+    <FieldError id={`${fieldId}-error`}>{fieldState.error?.message}</FieldError>
+  </Field>;
 }

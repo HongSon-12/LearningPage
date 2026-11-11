@@ -28,7 +28,8 @@ import { queryRegistrationPage } from "@/lib/registration-page";
 import { registrationFilter } from "@/lib/registration-filter";
 function refresh() {
   invalidatePublicClasses();
-  revalidatePath("/", "layout");
+  revalidatePath("/");
+  revalidatePath("/registrations");
   revalidatePath("/courses", "layout");
   revalidatePath("/hocsocapcuu/courses");
   revalidatePath("/hocsocapcuu");

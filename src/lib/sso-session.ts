@@ -34,7 +34,8 @@ export async function createSsoSession(userId: string, claims: { sub: string; si
   });
 }
 const checks = new Map<string, Promise<boolean>>();
-type LinkedSession = Session & { user: User };
+export const sessionUserSelect = { id: true, active: true, ssoActive: true, appAccessGranted: true, ssoUserId: true, ssoSubject: true, ssoIssuer: true } as const;
+type LinkedSession = Session & { user: Pick<User, keyof typeof sessionUserSelect> };
 const sessionAllowed = (session: LinkedSession) => session.expiresAt > new Date() && session.user.active && session.user.ssoActive && session.user.appAccessGranted && Boolean(session.ssoSubject && session.ssoSid && session.ssoIssuer === ssoConfig().issuer && session.ssoAccessToken && session.user.ssoUserId && session.user.ssoSubject === session.ssoSubject);
 const refreshDue = (session: Session) => Boolean(session.ssoRefreshToken && session.ssoAccessTokenExpiresAt && session.ssoAccessTokenExpiresAt.getTime() <= Date.now() + 30000);
 async function sessionAccessToken(session: Session, config: Awaited<ReturnType<typeof oidcConfiguration>>) {
@@ -70,7 +71,7 @@ export async function validSsoSession(session: LinkedSession): Promise<boolean> 
       try {
         // A request may have read the old lease just before a previous check
         // completed. Reload once so that late requests don't repeat SSO calls.
-        const latest = await prisma.session.findUnique({ where: { tokenHash: session.tokenHash }, include: { user: true } });
+        const latest = await prisma.session.findUnique({ where: { tokenHash: session.tokenHash }, include: { user: { select: sessionUserSelect } } });
         if (!latest || !sessionAllowed(latest)) return false;
         if (latest.ssoCheckedUntil && latest.ssoCheckedUntil > new Date() && !refreshDue(latest)) return true;
         const config = await oidcConfiguration();
@@ -83,7 +84,7 @@ export async function validSsoSession(session: LinkedSession): Promise<boolean> 
           await prisma.session.deleteMany({ where: { tokenHash: session.tokenHash } }); return false;
         }
         const user = await syncDirectoryUser(source);
-        if (!user?.active || !user.appAccessGranted || !user.ssoActive) return false;
+        if (!user?.active || !user.ssoActive || !user.appAccessGranted) return false;
         // updateMany cannot resurrect a session deleted by logout/webhook while this check was in flight.
         const updated = await prisma.session.updateMany({ where: { tokenHash: session.tokenHash, expiresAt: { gt: new Date() } }, data: { ssoCheckedUntil: new Date(Date.now() + 30000) } });
         return updated.count === 1;

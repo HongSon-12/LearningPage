@@ -12,14 +12,14 @@ export async function saveUser(form: FormData) {
     const actor = await requirePermission("users.manage");
     await rateLimit("user-management", actor.id, 30, 60000);
     const result = ssoEnabled() ? await persistSsoAccess(actor, {
-      id: String(form.get("id") || ""), role: String(form.get("role")), active: form.get("active") === "on", customRoleId: String(form.get("customRoleId") || ""),
+      id: String(form.get("id") || ""), role: form.get("role") ? String(form.get("role")) : null, customRoleId: String(form.get("customRoleId") || ""),
     }) : await persistUser(actor, {
       id: String(form.get("id") || ""),
       username: String(form.get("username") || ""),
-      email: String(form.get("email") || "").trim().toLowerCase(),
+      name: String(form.get("name") || ""),
       customRoleId: String(form.get("customRoleId") || ""),
       password: String(form.get("password") || ""),
-      role: String(form.get("role")) as UserInput["role"],
+      role: (form.get("role") ? String(form.get("role")) : null) as UserInput["role"],
       active: form.get("active") === "on",
     });
     revalidatePath("/users");

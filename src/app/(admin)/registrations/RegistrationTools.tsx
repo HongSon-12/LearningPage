@@ -38,7 +38,7 @@ export default function RegistrationTools({
   allowCreate = true,
 }: {
   courses: Course[];
-  role: UserRole;
+  role: UserRole | null;
   permissions: PermissionKey[];
   classId: string;
   allowCreate?: boolean;
@@ -114,7 +114,6 @@ export default function RegistrationTools({
       setUploads({});
       setMessage("Đã thêm học viên.");
       toast.success("Đã thêm học viên.");
-      router.refresh();
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Không thể lưu.");
       toast.error(e instanceof Error ? e.message : "Không thể lưu.");

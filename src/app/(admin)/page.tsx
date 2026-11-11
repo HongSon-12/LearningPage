@@ -1,5 +1,5 @@
 import { can, classScope } from "@/lib/permissions";
-import { pageUser } from "@/lib/auth";
+import { pagePermission } from "@/lib/auth";
 import { occupiedWhere } from "@/lib/admissions";
 import prisma from "@/lib/prisma";
 import {PendingLink as Link} from "@/components/navigation/navigation-feedback";
@@ -11,7 +11,7 @@ import DashboardCharts from "./components/DashboardCharts";
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboard() {
- const actor=await pageUser();
+ const actor=await pagePermission("dashboard.view");
  const viewClasses=can(actor,"classes.view"), viewRegistrations=can(actor,"registrations.view");
  const scope=classScope(actor);
  const registrationScope={class:scope};
@@ -36,7 +36,7 @@ export default async function AdminDashboard() {
 
 
  return <div className="w-full min-w-0 space-y-4">
-  <PageHeader title="Tổng quan hệ thống" description={`Xin chào ${actor.username}. Theo dõi tình hình lớp học, đăng ký và các hồ sơ cần xử lý.`} icon={LayoutDashboard} action={<span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500"><CalendarDays size={15}/>{new Date().toLocaleDateString("vi-VN",{day:"2-digit",month:"long",year:"numeric"})}</span>}/>
+  <PageHeader title="Tổng quan hệ thống" description={`Xin chào ${actor.name || actor.username}. Theo dõi tình hình lớp học, đăng ký và các hồ sơ cần xử lý.`} icon={LayoutDashboard} action={<span className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-slate-500"><CalendarDays size={15}/>{new Date().toLocaleDateString("vi-VN",{day:"2-digit",month:"long",year:"numeric"})}</span>}/>
   {viewClasses && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Link href="/courses" className="rounded-2xl transition hover:shadow-sm focus-visible:outline-2 focus-visible:outline-blue-600"><StatCard label="Lớp đang mở đăng ký" value={openCount} icon={BookOpen} hint="Xem danh sách lớp học"/></Link>{viewRegistrations && <><Link href="/registrations" className="rounded-2xl transition hover:shadow-sm focus-visible:outline-2 focus-visible:outline-blue-600"><StatCard label="Hồ sơ chờ duyệt" value={reviewCount} icon={ClipboardCheck} tone="amber" hint="Cần kiểm tra thông tin"/></Link><Link href="/registrations" className="rounded-2xl transition hover:shadow-sm focus-visible:outline-2 focus-visible:outline-blue-600"><StatCard label="Chờ thanh toán" value={paymentCount} icon={CreditCard} tone="amber" hint="Hồ sơ đang hoạt động"/></Link><Link href="/registrations" className="rounded-2xl transition hover:shadow-sm focus-visible:outline-2 focus-visible:outline-blue-600"><StatCard label="Đã thanh toán" value={paidCount} icon={CheckCircle} tone="green" hint="Hồ sơ đang hoạt động"/></Link></>}</div>}
 
   {(viewClasses || viewRegistrations) && <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">

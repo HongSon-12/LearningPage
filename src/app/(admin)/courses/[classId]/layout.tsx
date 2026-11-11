@@ -41,7 +41,7 @@ export default async function ClassLayout({children,params}:{children:ReactNode;
         <span className="rounded-md bg-blue-50 px-2.5 py-1 font-medium text-blue-700">{classStageLabels[classStage(course,today)]}</span>
         <span className="inline-flex items-center gap-2"><CalendarDays className="size-4 shrink-0" />{date(course.startDate)}{date(course.endDate)!==date(course.startDate)?` – ${date(course.endDate)}`:""} · {course.startTime}–{course.endTime}</span>
         <span className="inline-flex items-center gap-2"><MapPin className="size-4 shrink-0" />{course.location || "Chưa có địa điểm"}</span>
-        <span className="inline-flex items-center gap-2"><UserRound className="size-4 shrink-0" />{course.manager?.username || "Chưa có người phụ trách"}</span>
+        <span className="inline-flex items-center gap-2"><UserRound className="size-4 shrink-0" />{course.manager?.name || course.manager?.username || "Chưa có người phụ trách"}</span>
         <span className="ml-auto inline-flex items-center gap-2 text-xs">Đăng ký <StatusBadge kind="class" value={course.status} /></span>
       </div>
       {canRecords && <div className="grid grid-cols-2 divide-x divide-slate-200 md:grid-cols-4">{metrics.map(metric=><Link scroll={false} key={metric.label} href={metric.href} className="min-w-0 p-4 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-ring"><p className="text-sm text-muted-foreground">{metric.label}</p><p className="mt-1 text-2xl font-semibold tabular-nums">{metric.value}</p><p className="mt-1 text-xs text-muted-foreground">{metric.hint}</p></Link>)}</div>}

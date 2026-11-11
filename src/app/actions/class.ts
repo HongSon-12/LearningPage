@@ -20,7 +20,7 @@ export async function getClasses() {
       where: classScope(actor),
       orderBy: { startDate: "asc" },
       include: {
-        manager: { select: { id: true, username: true } },
+        manager: { select: { id: true, username: true, name: true } },
         _count: {
           select: {
             sessions: true,
@@ -47,7 +47,7 @@ export async function createClass(formData: FormData) {
     const name = formData.get("name") as string;
     const courseType = formData.get("courseType") as CourseType || "COMMUNITY_FIRST_AID";
     const courseBatch = formData.get("courseBatch") as string || null;
-    const fee = parseFloat(formData.get("fee") as string) || 0;
+    const fee = Number(formData.get("fee") ?? 0);
     const location = formData.get("location") as string || "";
     const startDate = new Date(formData.get("startDate") as string);
     const endDate = new Date(formData.get("endDate") as string || formData.get("startDate") as string);
@@ -124,7 +124,7 @@ export async function updateClass(id: string, formData: FormData) {
     const name = formData.get("name") as string;
     const courseType = formData.get("courseType") as CourseType || "COMMUNITY_FIRST_AID";
     const courseBatch = formData.get("courseBatch") as string || null;
-    const fee = parseFloat(formData.get("fee") as string) || 0;
+    const fee = Number(formData.get("fee") ?? 0);
     const location = formData.get("location") as string || "";
     const startDate = new Date(formData.get("startDate") as string);
     const endDate = new Date(formData.get("endDate") as string || formData.get("startDate") as string);
@@ -172,8 +172,6 @@ export async function updateClass(id: string, formData: FormData) {
     });
 
     });
-    invalidatePublicClasses();
-    revalidatePath("/courses", "layout"); revalidatePath("/hocsocapcuu/courses");
     invalidatePublicClasses();
     revalidatePath("/courses", "layout"); revalidatePath("/hocsocapcuu/courses");
     return { success: true };

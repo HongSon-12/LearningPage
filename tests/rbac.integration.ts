@@ -31,6 +31,7 @@ async function main() {
     const accounts = await Promise.all((["ADMIN","CLASS_MANAGER","ACCOUNTANT"] as const).map(role=>prisma!.user.create({data:{username:role,passwordHash:"unused",role}})));
     const [admin, manager, accountant] = await Promise.all(accounts.map(user=>freshActor(user)));
     for (const actor of [admin,manager,accountant]) {
+      assert(actor.role);
       const allowed = permissionKeys.filter(key=>can(actor,key));
       assert.deepEqual([...allowed].sort(), [...defaultRolePermissions[actor.role]].sort());
     }

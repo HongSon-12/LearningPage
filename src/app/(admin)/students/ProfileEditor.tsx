@@ -1,7 +1,6 @@
 "use client";
 import { toast } from "sonner";
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { confirmStudentProfile } from "@/app/actions/student";
 import { DateTimePicker } from "@/components/forms/date-time-picker";
 import { Input } from "@/components/ui/input";
@@ -21,7 +20,6 @@ export default function ProfileEditor({
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const router = useRouter();
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -36,8 +34,7 @@ export default function ProfileEditor({
         setMessage(
           "Đã lưu hồ sơ học viên. Các mã tra cứu cũ đã được vô hiệu hóa.",
         );
-        router.refresh();
-      } else {toast.error(result.error || "Không thể lưu hồ sơ.");setMessage(result.error || "Không thể lưu hồ sơ.");}
+        } else {toast.error(result.error || "Không thể lưu hồ sơ.");setMessage(result.error || "Không thể lưu hồ sơ.");}
     } catch {
       toast.error("Không thể lưu hồ sơ. Vui lòng thử lại.");
       setMessage("Không thể lưu hồ sơ. Vui lòng thử lại.");

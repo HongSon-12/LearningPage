@@ -12,7 +12,6 @@ import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import type { UserRole } from "@prisma/client";
-import { useRouter } from "next/navigation";
 import {
   Search,
   Eye,
@@ -153,13 +152,12 @@ export default function RegistrationList({
 }: {
   initialPage: RegistrationPage;
   courses: Course[];
-  role: UserRole;
+  role: UserRole | null;
   permissions: PermissionKey[];
   mode: "manage" | "review";
   fixedClassId?: string;
   view?: "students" | "documents";
 }) {
-  const router = useRouter();
   const [pageData,setPageData]=useState(initialPage);
   const initialData=pageData.items;
   const [pageIndex,setPageIndex]=useState(1);
@@ -282,7 +280,6 @@ export default function RegistrationList({
         });
         if (result.success) {
           if (close) setSelectedId(null);
-          router.refresh();
         }
       } catch {
         toast.error("Không thể thực hiện thao tác. Vui lòng thử lại.");
@@ -294,7 +291,7 @@ export default function RegistrationList({
         mutationLock.current=false;setBusy(null);
       }
     },
-    [router],
+    [],
   );
   function reset() {
     setDocumentFilter("");

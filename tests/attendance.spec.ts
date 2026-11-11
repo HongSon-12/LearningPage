@@ -283,11 +283,9 @@ test("shadcn accounts: create, assign, prevent orphaned manager, change role/pas
   await page.getByLabel("Tìm kiếm", { exact: true }).fill(usernames[0]);
   await page.getByRole("button", { name: `Chọn tài khoản ${usernames[0]}`, exact: true }).click();
   dialog = page.getByRole("region",{name:"Thông tin tài khoản",exact:true});
-  await chooseSelect(
-    page,
-    dialog.getByLabel("Vai trò", { exact: true }),
-    "ACCOUNTANT",
-  );
+  // Module permissions can allow either role to manage classes. Disabling the
+  // assigned account is the operation that must require transferring its class.
+  await dialog.getByLabel("Cho phép đăng nhập", { exact: true }).uncheck();
   await dialog
     .getByRole("button", { name: "Lưu", exact: true })
     .click();

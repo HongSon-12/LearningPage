@@ -1,4 +1,5 @@
 "use client";
+import { useEligibleManagers } from "./use-eligible-managers";
 import { toast } from "sonner";
 import { SelectOption } from "@/components/forms/select-field";
 
@@ -11,6 +12,7 @@ import { programs, type ProgramType } from "@/lib/programs";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import {
+  ControlledMoneyField,
   ControlledSelectField,
   ControlledDateTimeField,
 } from "./controlled-fields";
@@ -68,13 +70,18 @@ export function ClassForm({
   course,
   onSave,
   onCancel,
-  managers,
+  managers: initialManagers,
+  canAssign = false,
 }: {
   course?: Class | null;
-  managers?: { id: string; username: string }[];
+  managers?: { id: string; username: string; name?: string|null }[];
+  canAssign?: boolean;
   onSave: (form: FormData) => Promise<{ success: boolean; error?: string }>;
   onCancel: () => void;
 }) {
+  const managerQuery = useEligibleManagers(canAssign && initialManagers === undefined, course?.id);
+  const managers = initialManagers ?? managerQuery.data;
+  const waitingForManagers = canAssign && managers === undefined;
   const {
     register,
     control,
@@ -104,6 +111,7 @@ export function ClassForm({
     },
   });
   async function submit(values: Values) {
+    if (waitingForManagers) return;
     const form = new FormData();
     for (const [key, value] of Object.entries(values)) {
       if (key === "targetAudiences" || (key === "managerId" && !managers)) continue;
@@ -195,7 +203,7 @@ export function ClassForm({
             <FieldError errors={[errors.courseType]} />
           </Field>
           {textFields.map(({ name, label, ...props }) =>
-            props.type === "date" || props.type === "time" ? (
+            name === "fee" ? <ControlledMoneyField key={name} name={name} control={control} id={`class-${name}`} label={label} required={props.required} /> : props.type === "date" || props.type === "time" ? (
               <ControlledDateTimeField
                 key={name}
                 name={name}
@@ -230,12 +238,12 @@ export function ClassForm({
             </ControlledSelectField>
             <FieldError errors={[errors.certificateType]} />
           </Field>
-          {managers && <Field className="gap-2">
+          {(canAssign || managers) && <Field className="gap-2">
             <FieldLabel htmlFor="class-managerId">Người phụ trách</FieldLabel>
-            <ControlledSelectField id="class-managerId" name="managerId" control={control}>
+            {managers ? <ControlledSelectField id="class-managerId" name="managerId" control={control}>
               <SelectOption value="">Chưa phân công</SelectOption>
-              {managers.map(manager => <SelectOption key={manager.id} value={manager.id}>{manager.username}</SelectOption>)}
-            </ControlledSelectField>
+              {managers.map(manager => <SelectOption key={manager.id} value={manager.id}>{manager.name || manager.username}</SelectOption>)}
+            </ControlledSelectField> : managerQuery.error ? <div role="alert" className="space-y-2"><p className="text-sm text-destructive">{managerQuery.error}</p><Button type="button" variant="outline" onClick={managerQuery.retry}>Thử lại</Button></div> : <p role="status" className="text-sm text-muted-foreground">Đang tải người phụ trách…</p>}
             <p className="text-xs text-muted-foreground">Chỉ người được chọn có quyền quản lý lớp này.</p>
           </Field>}
           {course && (
@@ -284,7 +292,7 @@ export function ClassForm({
           >
             Hủy
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
+          <Button type="submit" disabled={isSubmitting || waitingForManagers}>
             {isSubmitting ? <Loader2 className="animate-spin" /> : <Save />}
             {isSubmitting
               ? "Đang lưu…"

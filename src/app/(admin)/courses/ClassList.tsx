@@ -15,7 +15,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import { createClass, deleteClass, updateClass } from "@/app/actions/class";
 import { programs } from "@/lib/programs";
 import { DataTable } from "@/components/data-table/data-table";
@@ -28,10 +27,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import AdminDialog from "../components/AdminDialog";
 
-type ClassData = Class & { manager: {id:string;username:string}|null; _count: { registrations: number; sessions:number } };
+type ClassData = Class & { manager: {id:string;username:string;name?:string|null}|null; _count: { registrations: number; sessions:number } };
 export default function ClassList({
   initialClasses,
-  managers,
+  canAssign = false,
   today,
   canCreate = true,
   canEdit = true,
@@ -40,7 +39,7 @@ export default function ClassList({
   canRegistrations = true,
 }: {
   initialClasses: ClassData[];
-  managers?: {id:string;username:string}[];
+  canAssign?: boolean;
   today: string;
   canCreate?: boolean;
   canEdit?: boolean;
@@ -48,7 +47,6 @@ export default function ClassList({
   canSessions?: boolean;
   canRegistrations?: boolean;
 }) {
-  const router = useRouter();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<ClassData | null>(null);
   const [deleting, setDeleting] = useState<ClassData | null>(null);
@@ -98,7 +96,7 @@ export default function ClassList({
           <div className="min-w-44 max-w-80 whitespace-normal">
             <p className="font-medium">{row.original.name}</p>
             <p className="mt-1 text-[length:var(--ui-caption-size,0.8125rem)] leading-5 text-muted-foreground">
-              {row.original.manager?.username || "Chưa có người phụ trách"}
+              {row.original.manager?.name || row.original.manager?.username || "Chưa có người phụ trách"}
             </p>
           </div>
         ),
@@ -204,7 +202,6 @@ export default function ClassList({
       if (result.success) {
         setDialogOpen(false);
         toast.success(editing ? "Đã cập nhật lớp học." : "Đã tạo lớp học.");
-        router.refresh();
       }
       return result;
     } finally {
@@ -220,7 +217,6 @@ export default function ClassList({
       else {
         setDeleting(null);
         toast.success("Đã xóa lớp học.");
-        router.refresh();
       }
     } catch {
       toast.error("Không thể xóa lớp học. Vui lòng thử lại.");
@@ -363,7 +359,7 @@ export default function ClassList({
           <ClassForm
             key={editing?.id ?? "new"}
             course={editing}
-            managers={managers}
+            canAssign={canAssign}
             onSave={save}
             onCancel={() => setDialogOpen(false)}
           />

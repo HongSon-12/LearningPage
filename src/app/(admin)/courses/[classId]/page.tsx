@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/money";
 import ClassAssignment from "./ClassAssignment";
 import ClassSessions from "./ClassSessions";
 import dynamicImport from "next/dynamic";
@@ -24,7 +25,7 @@ export default async function ClassStudentsPage({params,searchParams}:{params:Pr
     ]);
     return <RegistrationList key={tab} initialPage={result} courses={courses} role={actor.role} permissions={actor.permissions} mode="manage" fixedClassId={classId} view={tab} />;
   }
-  const managers=can(actor,"classes.assign") ? await prisma.user.findMany({where:{active:true},select:{id:true,username:true},orderBy:{username:"asc"}}) : undefined;
+  const canAssign=can(actor,"classes.assign");
   const date=(value:Date)=>value.toLocaleDateString("vi-VN",{timeZone:"Asia/Ho_Chi_Minh"});
-  return can(actor,"classes.edit") ? <ClassDetails course={course} managers={managers} /> : <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 font-semibold">Thông tin lớp</h2><dl className="grid gap-5 sm:grid-cols-2">{[["Mã lớp",course.code],["Tên lớp",course.name],["Học phí",`${course.fee.toLocaleString("vi-VN")} đồng`],["Người phụ trách",course.manager?.username || "Chưa phân công"],["Địa điểm",course.location],["Lịch học",`${date(course.startDate)} – ${date(course.endDate)}`],["Chứng nhận",course.certificateType === "CONFIRMATION" ? "Giấy xác nhận" : "Giấy chứng nhận"]].map(([label,value])=><div key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 font-medium">{value || "Chưa có"}</dd></div>)}</dl>{managers&&<ClassAssignment classId={course.id} managerId={course.managerId} managers={managers}/>}</section>;
+  return can(actor,"classes.edit") ? <ClassDetails course={course} canAssign={canAssign} /> : <section className="rounded-xl border bg-card p-5"><h2 className="mb-4 font-semibold">Thông tin lớp</h2><dl className="grid gap-5 sm:grid-cols-2">{[["Mã lớp",course.code],["Tên lớp",course.name],["Học phí",`${formatMoney(course.fee)} đồng`],["Người phụ trách",course.manager?.name || course.manager?.username || "Chưa phân công"],["Địa điểm",course.location],["Lịch học",`${date(course.startDate)} – ${date(course.endDate)}`],["Chứng nhận",course.certificateType === "CONFIRMATION" ? "Giấy xác nhận" : "Giấy chứng nhận"]].map(([label,value])=><div key={label}><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 font-medium">{value || "Chưa có"}</dd></div>)}</dl>{canAssign&&<ClassAssignment classId={course.id} managerId={course.managerId}/>}</section>;
 }

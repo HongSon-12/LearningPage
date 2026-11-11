@@ -93,7 +93,7 @@ export function AdminShell({
       ? "Quản trị"
       : actor.role === "CLASS_MANAGER"
         ? "Quản lý lớp"
-        : "Kế toán");
+        : actor.role === "ACCOUNTANT" ? "Kế toán" : "Chưa phân quyền");
   const menuPermissions: Record<string, PermissionKey> = { "/": "dashboard.view", "/courses": "classes.view", "/registrations": "registrations.view", "/students": "students.view", "/course-links": "links.view", "/users": "users.manage", "/permissions": "roles.manage", "/settings": "settings.manage" };
   const navigation = (
     <nav aria-label="Điều hướng quản trị" className="space-y-1 p-3">
@@ -152,7 +152,7 @@ export function AdminShell({
             {navigation}
           </div>
           <div className="space-y-3 border-t p-3">
-            <AccountMenu username={actor.username} email={email} role={role} onNavigate={()=>setOpen(false)}/>
+            <AccountMenu username={actor.name || actor.username} email={email} role={role} onNavigate={()=>setOpen(false)}/>
           </div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
@@ -166,7 +166,7 @@ export function AdminShell({
                 <SheetContent side="left" className="admin-shell w-[min(320px,88vw)] gap-0 bg-white">
                   <SheetHeader className="border-b p-5 pr-14"><SheetTitle>115 Đào tạo</SheetTitle><SheetDescription>Điều hướng quản trị</SheetDescription></SheetHeader>
                   <div className="flex-1 overflow-auto py-3">{navigation}</div>
-                  <div className="border-t p-3"><AccountMenu username={actor.username} email={email} role={role} onNavigate={()=>setOpen(false)}/></div>
+                  <div className="border-t p-3"><AccountMenu username={actor.name || actor.username} email={email} role={role} onNavigate={()=>setOpen(false)}/></div>
                 </SheetContent>
               </Sheet>
               <div className="min-w-0">
@@ -174,7 +174,7 @@ export function AdminShell({
                 <h1 data-slot="admin-page-title" title={title} className="truncate text-base font-semibold tracking-tight sm:text-lg">{title}</h1>
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-1 sm:gap-3"><Link href="/help#versions" aria-label={`Phiên bản ${version}`} className="rounded-md px-2 py-2 text-xs font-medium text-muted-foreground hover:bg-muted">v{version}</Link><div className="lg:hidden"><AccountMenu username={actor.username} email={email} role={role} compact/></div></div>
+            <div className="flex shrink-0 items-center gap-1 sm:gap-3"><Link href="/help#versions" aria-label={`Phiên bản ${version}`} className="rounded-md px-2 py-2 text-xs font-medium text-muted-foreground hover:bg-muted">v{version}</Link><div className="lg:hidden"><AccountMenu username={actor.name || actor.username} email={email} role={role} compact/></div></div>
           </header>
           <main
             ref={main}

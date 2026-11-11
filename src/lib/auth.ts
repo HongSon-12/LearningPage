@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { UserRole } from "@prisma/client";
 import prisma from "@/lib/prisma";
 import {ssoEnabled} from "./auth-mode";
-import {validSsoSession} from "./sso-session";
+import {validSsoSession, sessionUserSelect} from "./sso-session";
 import { freshActor } from "./rbac";
 import { can, landingPath, type Actor } from "./permissions";
 import type { PermissionKey } from "./permission-catalog";
@@ -16,22 +16,22 @@ export const digest = (value: string) => createHash("sha256").update(value).dige
 export const currentUser = cache(async function currentUser() {
   const token = (await cookies()).get(sessionCookie)?.value;
   if (!token) return null;
-  const session = await prisma.session.findUnique({where: {tokenHash: digest(token)}, include: {user: true}});
+  const session = await prisma.session.findUnique({where: {tokenHash: digest(token)}, include: {user: {select: sessionUserSelect}}});
   if (!session || session.expiresAt <= new Date() || !session.user.active) return null;
   if (ssoEnabled() && !await validSsoSession(session)) return null;
   try { return await freshActor({id:session.userId}); } catch { return null; }
 });
 export {classScope, assertClassAccess} from "./permissions";
 export type {Actor} from "./permissions";
-export async function requireUser(roles: UserRole[] = ["ADMIN", "CLASS_MANAGER", "ACCOUNTANT"]) {
+export async function requireUser(roles?: UserRole[]) {
   const user = await currentUser();
-  if (!user || !roles.includes(user.role)) throw new RequestError("Bạn không có quyền thực hiện thao tác này.");
+  if (!user || (roles && (!user.role || !roles.includes(user.role)))) throw new RequestError("Bạn không có quyền thực hiện thao tác này.");
   return user;
 }
-export async function pageUser(roles: UserRole[] = ["ADMIN", "CLASS_MANAGER", "ACCOUNTANT"]) {
+export async function pageUser(roles?: UserRole[]) {
   const user = await currentUser();
   if (!user) redirect("/login");
-  if (!roles.includes(user.role)) redirect(landingPath(user));
+  if (roles && (!user.role || !roles.includes(user.role))) redirect(landingPath(user));
   return user;
 }
 

@@ -9,11 +9,12 @@ datasource db {
 model User {
   id           String   @id @default(uuid())
   username     String   @unique
+  name         String?
   email        String?  @unique
   customRoleId String?
   customRole   CustomRole? @relation(fields: [customRoleId], references: [id], onDelete: Restrict)
   passwordResets PasswordResetChallenge[]
-  role         UserRole @default(ADMIN)
+  role         UserRole?
   active       Boolean @default(true)
   sessions     Session[]
   managedClasses Class[] @relation("ClassManager")
@@ -23,6 +24,7 @@ model User {
   ssoUid String? @unique
   ssoActive Boolean @default(false)
   appAccessGranted Boolean @default(false)
+  ssoAccessCheckedAt DateTime?
   ssoUpdatedAt DateTime?
   @@unique([ssoIssuer, ssoSubject])
   passwordHash String

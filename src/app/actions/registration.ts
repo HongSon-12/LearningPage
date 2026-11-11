@@ -46,7 +46,7 @@ export async function createRegistration(
     invalidatePublicClasses();
     revalidatePath("/courses", "layout");
     revalidatePath("/hocsocapcuu/courses");
-    revalidatePath("/", "layout");
+    revalidatePath("/");
     // Receipt ownership is a random capability; return only the information needed by this wizard.
     const result = await prisma.registration.findUniqueOrThrow({
       where: { id: registration.id },

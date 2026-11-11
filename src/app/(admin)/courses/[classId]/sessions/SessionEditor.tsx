@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -21,7 +20,6 @@ export default function SessionEditor({
   onClose: () => void;
   onBusyChange: (value:boolean)=>void;
 }) {
-  const router = useRouter();
   const {
     register,
     control,
@@ -48,7 +46,6 @@ export default function SessionEditor({
       }
       toast.success("Đã lưu buổi học.");
       onClose();
-      router.refresh();
     } catch {
       toast.error("Không thể lưu buổi học. Vui lòng thử lại.");
       setError("root", {

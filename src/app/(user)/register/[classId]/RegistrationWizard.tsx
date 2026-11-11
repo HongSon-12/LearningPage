@@ -1,4 +1,5 @@
 "use client";
+import { formatMoney } from "@/lib/money";
 import { toast } from "sonner";
 import { SelectField, SelectOption } from "@/components/forms/select-field";
 
@@ -537,7 +538,7 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
                       Số tiền
                     </div>
                     <div className="font-black text-xl text-rose-600">
-                      {new Intl.NumberFormat("vi-VN").format(
+                      {formatMoney(
                         classData.fee ?? 400000,
                       )}{" "}
                       đ

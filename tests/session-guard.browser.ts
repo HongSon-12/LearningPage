@@ -79,6 +79,34 @@ async function main() {
       await expect(page.locator("#sso-session-shield")).toBeHidden();
       assert.equal(calls(), before + 1);
     }],
+    ["ordinary pageshow does not duplicate initial verification", async (page, _answer, calls) => {
+      await expect(page.locator("#sso-session-shield")).toBeHidden();
+      const before=calls();
+      await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", {persisted:false})));
+      await page.waitForTimeout(100);
+      assert.equal(calls(),before);
+    }],
+    ["return during an old in-flight check requires a fresh visible check", async (page, answer, calls) => {
+      await expect(page.locator("#sso-session-shield")).toBeHidden();answer.delay=500;
+      const before=calls();await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await expect.poll(calls).toBe(before+1);
+      await visibility(page,"hidden");await visibility(page,"visible");
+      await expect(page.locator("#sso-session-shield")).toBeVisible();
+      await expect.poll(calls).toBe(before+2);
+      await expect(page.locator("#sso-session-shield")).toBeHidden();
+    }],
+    ["a delayed JSON body from before tab hide cannot uncover the restored page", async (page, answer, calls) => {
+      await expect(page.locator("#sso-session-shield")).toBeHidden();answer.delay=10;
+      await page.evaluate(() => { (window as unknown as {fixtureJsonDelay:number}).fixtureJsonDelay=500; });
+      const before=calls();
+      const bodies=await page.evaluate(() => (window as unknown as {fixtureJsonBodies:number}).fixtureJsonBodies);
+      await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+      await page.waitForFunction(value => (window as unknown as {fixtureJsonBodies:number}).fixtureJsonBodies > value,bodies);
+      await visibility(page,"hidden");await visibility(page,"visible");
+      await expect.poll(calls).toBe(before+2);
+      await expect(page.locator("#sso-session-shield")).toBeVisible();
+      await expect(page.locator("#sso-session-shield")).toBeHidden();
+    }],
     ["BFCache restoration checks before revealing protected content", async (page, answer, calls) => {
       await expect(page.locator("#sso-session-shield")).toBeHidden();
       answer.delay = 400;
@@ -141,6 +169,9 @@ async function main() {
       let calls = 0;
       await page.clock.install();
       await page.addInitScript({ content: `
+        window.fixtureJsonBodies=0;window.fixtureJsonDelay=0;
+        const originalFetch=window.fetch.bind(window);
+        window.fetch=async (...args)=>{const response=await originalFetch(...args);const json=response.json.bind(response);response.json=async()=>{window.fixtureJsonBodies++;const delay=window.fixtureJsonDelay;if(delay)await new Promise(resolve=>setTimeout(resolve,delay));return json();};return response;};
         let guardVisibility = 'visible';
         Object.defineProperty(document, 'visibilityState', { get: () => guardVisibility });
         window.setGuardVisibility = value => {

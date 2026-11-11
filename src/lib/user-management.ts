@@ -1,3 +1,4 @@
+import { assertEligibleManager } from "./manager-access";
 import {ssoEnabled} from "./auth-mode";
 import { hash } from "bcryptjs";
 import { rosterTransaction } from "@/lib/admissions";
@@ -10,7 +11,7 @@ export async function persistUser(actor: Actor, input: UserInput) {
   if(ssoEnabled()) throw new RequestError("Tài khoản và mật khẩu được quản lý tại SSO 115.");
   const parsed = userInput.safeParse(input);
   if (!parsed.success) throw new RequestError(parsed.error.issues[0].message);
-  const { id, username, password, role, active, email, customRoleId } = parsed.data;
+  const { id, username, password, role, active, email, name, customRoleId } = parsed.data;
   const passwordHash = password ? await hash(password, 12) : undefined;
   return rosterTransaction(async (tx) => {
     await transactionPermission(tx, actor, "users.manage");
@@ -53,6 +54,7 @@ export async function persistUser(actor: Actor, input: UserInput) {
       email: normalizedEmail,
       customRoleId: selectedRoleId,
       username,
+      name: name === undefined ? existing?.name ?? null : name || null,
       role,
       active,
       ...(passwordHash ? { passwordHash } : {}),
@@ -87,8 +89,7 @@ export async function assignManagerInTransaction(
   const current=await transactionPermission(tx, actor, "classes.assign");
   const course=await tx.class.findUniqueOrThrow({where:{id:classId}});
   assertClassAccess(current,course);
-  if (managerId && !(await tx.user.findFirst({where:{id:managerId,active:true}})))
-    throw new RequestError("Tài khoản quản lý không hợp lệ.");
+  if (managerId) await assertEligibleManager(tx, managerId);
   await tx.class.update({where:{id:classId},data:{managerId:managerId || null}});
   await tx.auditLog.create({data:{actorId:actor.id,action:"CLASS_ASSIGN_MANAGER",resourceId:classId,result:"ALLOWED"}});
 }

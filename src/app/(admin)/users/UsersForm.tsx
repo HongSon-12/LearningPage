@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 
-type User = { id: string; username: string; role: UserRole; active: boolean; email?: string|null; customRoleId?:string|null; ssoUserId?:string|null; ssoActive?:boolean; appAccessGranted?:boolean };
+type User = { id: string; username: string; name?: string|null; role: UserRole | null; active: boolean; email?: string|null; customRoleId?:string|null; ssoUserId?:string|null; ssoActive?:boolean; appAccessGranted?:boolean; ssoAccessCheckedAt?:Date|string|null };
 type CustomRole={id:string;name:string;baseRole:UserRole};
 function AccountEditor({
   user,
@@ -51,11 +51,12 @@ function AccountEditor({
     defaultValues: {
       id: user?.id || "",
       username: user?.username || "",
+      name: user?.name || "",
       email: user?.email || "",
       customRoleId: user?.customRoleId || "",
       password: "",
-      role: user?.role || "CLASS_MANAGER",
-      active: ssoMode ? user?.appAccessGranted ?? false : user?.active ?? true,
+      role: user ? user.role : ssoMode ? null : "CLASS_MANAGER",
+      active: ssoMode ? Boolean(user?.ssoActive) : user?.active ?? true,
     },
   });
   const role = useWatch({ control, name: "role" });
@@ -74,7 +75,7 @@ function AccountEditor({
       }
       toast.success("Đã lưu tài khoản.");
       reset({...values,password:""});
-      onDone(Boolean(result.signInAgain), {id:result.id,username:values.username,role:values.role,active:ssoMode ? values.active && Boolean(user?.ssoActive) : values.active,email:values.email,customRoleId:values.customRoleId,...(ssoMode ? {ssoUserId:user?.ssoUserId,ssoActive:user?.ssoActive,appAccessGranted:values.active}:{})});
+      onDone(Boolean(result.signInAgain), {id:result.id,username:values.username,name:ssoMode ? user?.name : values.name,role:values.role,active:ssoMode ? Boolean(user?.ssoActive && user?.appAccessGranted) : values.active,email:user?.email,customRoleId:values.customRoleId,...(ssoMode ? {ssoUserId:user?.ssoUserId,ssoActive:user?.ssoActive,appAccessGranted:user?.appAccessGranted,ssoAccessCheckedAt:user?.ssoAccessCheckedAt}:{})});
     } catch {
       toast.error("Không thể lưu tài khoản. Vui lòng thử lại.");
       setError("root", {
@@ -90,7 +91,13 @@ function AccountEditor({
           {errors.root.message}
         </p>
       )}
+      {ssoMode && <dl className="grid gap-3 rounded-lg border bg-muted/30 p-4 sm:grid-cols-3" aria-label="Trạng thái tài khoản và quyền truy cập">
+        <div><dt className="text-sm text-muted-foreground">Tài khoản trên SSO</dt><dd className="mt-1 font-medium">{!user?.ssoUserId ? "Chưa liên kết SSO" : user.ssoActive ? "Có tài khoản · Active" : "Có tài khoản · Không active"}</dd></div>
+        <div><dt className="text-sm text-muted-foreground">Quyền vào application EDU</dt><dd className="mt-1 font-medium">{!user?.ssoAccessCheckedAt ? "Chưa xác minh từ SSO" : user.appAccessGranted ? "SSO cho phép" : "SSO không cho phép"}</dd></div>
+        <div><dt className="text-sm text-muted-foreground">Phân quyền tính năng, module</dt><dd className="mt-1 font-medium">{user?.role ? customRoles.find(item=>item.id===user.customRoleId)?.name || roleLabels[user.role] : "Chờ admin phân quyền"}</dd></div>
+      </dl>}
       <div className="grid gap-5 sm:grid-cols-2">
+        <div className="space-y-2"><Label htmlFor="account-display-name">Tên người dùng</Label><Input id="account-display-name" readOnly={ssoMode} {...register("name")} />{errors.name && <p role="alert" className="text-sm text-destructive">{errors.name.message}</p>}</div>
         <div className="space-y-2">
           <Label htmlFor="account-name">Tên đăng nhập</Label>
           <Input
@@ -127,27 +134,28 @@ function AccountEditor({
         </div>}
         <div className="space-y-2">
           <Label htmlFor="account-role">Vai trò</Label>
-          <SelectField id="account-role" disabled={self} value={customRoleId ? `custom:${customRoleId}` : role} onValueChange={value=>{
+          <SelectField id="account-role" disabled={self} value={customRoleId ? `custom:${customRoleId}` : role || ""} onValueChange={value=>{
             const custom=customRoles.find(item=>`custom:${item.id}`===value);
-            setValue("role",custom?.baseRole || value as UserRole);setValue("customRoleId",custom?.id || "");
+            setValue("role",custom?.baseRole || (value ? value as UserRole : null));setValue("customRoleId",custom?.id || "");
           }}>
+            <SelectOption value="">Chưa phân quyền</SelectOption>
             {Object.entries(roleLabels).map(([value,label])=><SelectOption key={value} value={value}>{label}</SelectOption>)}
             {customRoles.map(item=><SelectOption key={item.id} value={`custom:${item.id}`}>{item.name}</SelectOption>)}
           </SelectField>
         </div>
-        <div className="space-y-2"><Label htmlFor="account-email">{ssoMode ? "Email từ SSO" : "Email khôi phục"}</Label><Input id="account-email" type="email" autoComplete="email" readOnly={ssoMode} {...register("email")} /><p className="text-sm text-muted-foreground">{ssoMode ? "Tên đăng nhập và email chỉ cập nhật tại SSO." : "Dùng để nhận mã khi quên mật khẩu."}</p>{errors.email && <p role="alert" className="text-sm text-destructive">{errors.email.message}</p>}</div>
-        <Label className="flex items-center gap-3 rounded-lg border p-4">
+        <div className="space-y-2"><Label htmlFor="account-email">{ssoMode ? "Email từ SSO" : "Email khôi phục"}</Label><Input id="account-email" type="email" autoComplete="email" readOnly {...register("email")} /><p className="text-sm text-muted-foreground">{ssoMode ? "Tên người dùng, tên đăng nhập và email được cập nhật tại SSO." : "Email chỉ hiển thị thông tin tài khoản."}</p>{errors.email && <p role="alert" className="text-sm text-destructive">{errors.email.message}</p>}</div>
+        {!ssoMode && <Label className="flex items-center gap-3 rounded-lg border p-4">
           <input
             type="checkbox"
             {...register("active")}
             disabled={self}
             className="size-4"
           />
-          {ssoMode ? "Cấp quyền truy cập edu" : "Cho phép đăng nhập"}
-        </Label>
+          Cho phép đăng nhập
+        </Label>}
       </div>
       <p className="rounded-lg bg-muted p-4 text-sm leading-6">
-        {roleDescriptions[role]}
+        {role ? roleDescriptions[role] : "Chưa phân quyền. Người dùng được SSO cho phép vào EDU chỉ có thể xem tài khoản và chờ admin cấp quyền sử dụng tính năng, module."}
       </p>
       <p className="text-sm text-muted-foreground">
         {self
@@ -181,23 +189,23 @@ export default function UsersForm({ users, currentUserId, customRoles, ssoMode=f
   const [roleFilter, setRoleFilter] = useState("");
   const [status, setStatus] = useState("");
   const selected = users.find(user=>user.id === editor?.id) || editor;
-  const visibleUsers = users.filter(user => (!roleFilter || (roleFilter.startsWith("custom:") ? user.customRoleId === roleFilter.slice(7) : !user.customRoleId && user.role === roleFilter)) && (!status || (status === "active" ? user.active : !user.active)) && user.username.toLowerCase().includes(query.toLowerCase()));
+  const visibleUsers = users.filter(user => (!roleFilter || (roleFilter === "unassigned" ? !user.role : roleFilter.startsWith("custom:") ? user.customRoleId === roleFilter.slice(7) : !user.customRoleId && user.role === roleFilter)) && (!status || (status === "active" ? user.active : status === "locked" ? !user.active : status === "sso-active" ? user.ssoActive : status === "sso-inactive" ? !user.ssoActive : status === "allowed" ? Boolean(user.ssoAccessCheckedAt && user.appAccessGranted) : status === "denied" ? Boolean(user.ssoAccessCheckedAt && !user.appAccessGranted) : !user.ssoAccessCheckedAt)) && [user.name, user.username, user.email].some(value => value?.toLowerCase().includes(query.toLowerCase())));
   return <div className="grid items-start gap-5 lg:grid-cols-[minmax(250px,3fr)_minmax(0,7fr)]" data-slot="master-detail">
     <aside className="min-w-0 space-y-4 rounded-xl border bg-card p-4 lg:sticky lg:top-0" aria-label="Chọn tài khoản" data-slot="master-pane">
       <div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Tài khoản <span className="text-sm font-normal text-muted-foreground">({users.length})</span></h2>{!ssoMode && <Button id="user-create" aria-label="Thêm tài khoản" disabled={busy} onClick={()=>{setEditor(null);setRevision(value=>value+1);}}><Plus />Thêm</Button>}</div>
-      <div className="space-y-2"><Label htmlFor="users-query">Tìm kiếm</Label><Input id="users-query" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tên đăng nhập…" /></div>
+      <div className="space-y-2"><Label htmlFor="users-query">Tìm kiếm</Label><Input id="users-query" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Tên người dùng, tên đăng nhập, email…" /></div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-        <div className="space-y-2"><Label htmlFor="users-role">Lọc vai trò</Label><SelectField id="users-role" value={roleFilter} onValueChange={setRoleFilter}><SelectOption value="">Tất cả</SelectOption>{Object.entries(roleLabels).map(([value,label])=><SelectOption key={value} value={value}>{label}</SelectOption>)}{customRoles.map(item=><SelectOption key={item.id} value={`custom:${item.id}`}>{item.name}</SelectOption>)}</SelectField></div>
-        <div className="space-y-2"><Label htmlFor="users-status">Trạng thái</Label><SelectField id="users-status" value={status} onValueChange={setStatus}><SelectOption value="">Tất cả</SelectOption><SelectOption value="active">Hoạt động</SelectOption><SelectOption value="locked">Đã khóa</SelectOption></SelectField></div>
+        <div className="space-y-2"><Label htmlFor="users-role">Lọc vai trò</Label><SelectField id="users-role" value={roleFilter} onValueChange={setRoleFilter}><SelectOption value="">Tất cả</SelectOption><SelectOption value="unassigned">Chưa phân quyền</SelectOption>{Object.entries(roleLabels).map(([value,label])=><SelectOption key={value} value={value}>{label}</SelectOption>)}{customRoles.map(item=><SelectOption key={item.id} value={`custom:${item.id}`}>{item.name}</SelectOption>)}</SelectField></div>
+        <div className="space-y-2"><Label htmlFor="users-status">Trạng thái</Label><SelectField id="users-status" value={status} onValueChange={setStatus}><SelectOption value="">Tất cả</SelectOption><SelectOption value="active">Hoạt động</SelectOption><SelectOption value="locked">Không hoạt động</SelectOption>{ssoMode && <><SelectOption value="sso-active">SSO active</SelectOption><SelectOption value="sso-inactive">SSO không active</SelectOption><SelectOption value="allowed">SSO cho phép vào EDU</SelectOption><SelectOption value="denied">SSO chặn vào EDU</SelectOption><SelectOption value="unchecked">Chưa xác minh quyền EDU</SelectOption></>}</SelectField></div>
       </div>
       <p role="status" className="text-xs text-muted-foreground">{visibleUsers.length} tài khoản phù hợp</p>
-      <div className="max-h-[50vh] space-y-2 overflow-y-auto" aria-label="Danh sách tài khoản">{visibleUsers.map(user=><button key={user.id} id={`user-edit-${user.id}`} type="button" aria-label={`Chọn tài khoản ${user.username}`} aria-pressed={editor?.id===user.id} disabled={busy} onClick={()=>setEditor(user)} className={`flex w-full items-start gap-3 rounded-lg border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 ${editor?.id===user.id?"border-blue-300 bg-blue-50":"border-border hover:bg-muted"}`}>
-        <UserRound className="mt-0.5 size-5 shrink-0 text-blue-600" /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 font-medium"><span className="break-all">{user.username}</span>{user.id===currentUserId && <Badge variant="outline">Bạn</Badge>}</span><span className="mt-1 block text-xs text-muted-foreground">{customRoles.find(item=>item.id===user.customRoleId)?.name || roleLabels[user.role]} · {ssoMode ? !user.ssoUserId ? "Tài khoản cục bộ" : !user.ssoActive ? "SSO đã khóa" : !user.appAccessGranted ? "Chờ cấp quyền" : "Đang hoạt động" : user.active?"Đang hoạt động":"Đã khóa"}</span></span>
+      <div className="max-h-[50vh] space-y-2 overflow-y-auto" aria-label="Danh sách tài khoản">{visibleUsers.map(user=><button key={user.id} id={`user-edit-${user.id}`} type="button" aria-label={`Chọn tài khoản ${user.name || user.username}`} aria-pressed={editor?.id===user.id} disabled={busy} onClick={()=>setEditor(user)} className={`flex w-full items-start gap-3 rounded-lg border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-50 ${editor?.id===user.id?"border-blue-300 bg-blue-50":"border-border hover:bg-muted"}`}>
+        <UserRound className="mt-0.5 size-5 shrink-0 text-blue-600" /><span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 font-medium"><span className="break-all">{user.name || user.username}</span>{user.id===currentUserId && <Badge variant="outline">Bạn</Badge>}</span><span className="mt-1 block text-xs text-muted-foreground">{customRoles.find(item=>item.id===user.customRoleId)?.name || (user.role ? roleLabels[user.role] : "Chưa phân quyền")} · {ssoMode ? !user.ssoUserId ? "Tài khoản cục bộ" : !user.ssoActive ? "SSO không active" : "SSO active" : user.active?"Đang hoạt động":"Đã khóa"}{ssoMode && user.ssoUserId && <> · {user.ssoAccessCheckedAt ? user.appAccessGranted ? "Được vào EDU" : "Chưa được vào EDU" : "Chưa xác minh quyền EDU"}</>}</span></span>
       </button>)}{!visibleUsers.length && <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">Không có tài khoản phù hợp.</p>}</div>
     </aside>
     <section aria-label="Thông tin tài khoản" className="min-w-0 rounded-xl border bg-card p-5 sm:p-6" data-slot="detail-pane">
-      <div className="mb-5 border-b pb-4"><h2 className="text-lg font-semibold">{selected?selected.username:"Thêm tài khoản"}</h2><p className="mt-1 text-sm text-muted-foreground">{ssoMode ? "Phân vai trò và quyền truy cập. Tài khoản chỉ hoạt động khi SSO cũng đang active." : "Thiết lập đăng nhập, vai trò và trạng thái tài khoản."}</p></div>
-      <AccountEditor ssoMode={ssoMode} customRoles={customRoles} key={`${selected?.id || "new"}-${revision}`} user={selected} self={selected?.id===currentUserId} onBusyChange={setBusy} onCancel={()=>{setEditor(selected ? users.find(user=>user.id===selected.id) || users[0] || null : users[0] || null);setRevision(value=>value+1);}} onDone={(signInAgain,saved)=>{setEditor(saved);if(signInAgain) router.replace("/login");else router.refresh();}} />
+      <div className="mb-5 border-b pb-4"><h2 className="text-lg font-semibold">{selected?(selected.name || selected.username):"Thêm tài khoản"}</h2><p className="mt-1 text-sm text-muted-foreground">{ssoMode ? "Tài khoản SSO active, quyền vào EDU và quyền sử dụng module là ba điều kiện riêng biệt. Vai trò để trống cho đến khi admin phân quyền." : "Thiết lập đăng nhập, vai trò và trạng thái tài khoản."}</p></div>
+      <AccountEditor ssoMode={ssoMode} customRoles={customRoles} key={`${selected?.id || "new"}-${revision}`} user={selected} self={selected?.id===currentUserId} onBusyChange={setBusy} onCancel={()=>{setEditor(selected ? users.find(user=>user.id===selected.id) || users[0] || null : users[0] || null);setRevision(value=>value+1);}} onDone={(signInAgain,saved)=>{setEditor(saved);if(signInAgain) router.replace("/login");}} />
     </section>
   </div>;
 }

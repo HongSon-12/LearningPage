@@ -1,8 +1,9 @@
 import {RequestError} from "@/lib/errors";
 import type { UserRole } from "@prisma/client";
 import { defaultRolePermissions, type PermissionKey } from "./permission-catalog";
-export type Actor = { id: string; username: string; role: UserRole; customRoleId?: string | null; roleName?: string; permissions?: readonly PermissionKey[] };
+export type Actor = { id: string; username: string; name?: string | null; role: UserRole | null; customRoleId?: string | null; roleName?: string; permissions?: readonly PermissionKey[] };
 export function can(actor: Actor, permission: PermissionKey): boolean {
+  if (!actor.role) return false;
   return (actor.permissions ?? defaultRolePermissions[actor.role]).includes(permission);
 }
 export function assertPermission(actor: Actor, permission: PermissionKey) {

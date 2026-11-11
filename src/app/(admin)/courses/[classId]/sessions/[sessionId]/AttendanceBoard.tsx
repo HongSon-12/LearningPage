@@ -2,7 +2,6 @@
 import Image from "next/image";
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Camera, Search, Check, X, LockKeyhole } from "lucide-react";
 import { toast } from "sonner";
 import type { AttendanceCandidate } from "@/lib/attendance";
@@ -139,7 +138,6 @@ export default function AttendanceBoard({
   presentInRoster: number;
   entries: Entry[];
 }) {
-  const router = useRouter();
   const [scanning, setScanning] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<AttendanceCandidate[] | null>(null);
@@ -195,7 +193,6 @@ export default function AttendanceBoard({
       toast.success(
         present ? "Đã ghi nhận có mặt." : "Đã hủy ghi nhận điểm danh.",
       );
-      router.refresh();
     } catch {
       toast.error("Không lưu được điểm danh. Vui lòng thử lại.");
     } finally {
@@ -215,7 +212,6 @@ export default function AttendanceBoard({
       setResults(null);
       setSelected(null);
       toast.success(closed ? "Đã mở lại buổi học." : "Đã chốt điểm danh.");
-      router.refresh();
     } catch {
       toast.error("Không đổi được trạng thái buổi học.");
     } finally {

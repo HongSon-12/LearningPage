@@ -12,7 +12,7 @@ export const classWorkspace = cache(async (classId: string) => {
   const course = await prisma.class.findFirst({
     where: { id: classId, ...classScope(actor) },
     include: {
-      manager: { select: { username: true } },
+      manager: { select: { username: true, name: true } },
       _count: { select: { registrations: { where: occupiedWhere }, sessions: true } },
     },
   });

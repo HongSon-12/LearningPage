@@ -26,4 +26,27 @@ export function publicClasses() {
     });
     return promise;
 }
-export function invalidatePublicClasses() { entries.delete(key()); }
+export function invalidatePublicClasses() { entries.delete(key()); availabilityEntries.delete(key()); }
+
+async function readAvailability() {
+    const courses = await prisma.class.findMany({
+        where: { status: "OPEN" },
+        select: { id: true, capacity: true, _count: { select: { registrations: { where: occupiedWhere } } } },
+        orderBy: [{ startDate: "asc" }, { id: "asc" }],
+    });
+    return courses.map(course => ({ id: course.id, capacity: course.capacity, count: course._count.registrations }));
+}
+type Availability = Awaited<ReturnType<typeof readAvailability>>;
+type AvailabilityCache = Map<string, { promise: Promise<Availability>; expires: number }>;
+declare global { var ttccPublicAvailability: AvailabilityCache | undefined; }
+const availabilityEntries = globalThis.ttccPublicAvailability ??= new Map() as AvailabilityCache;
+export function publicClassAvailability() {
+    const namespace = key(), existing = availabilityEntries.get(namespace);
+    if (existing && existing.expires > Date.now()) return existing.promise;
+    const entry = { promise: readAvailability(), expires: Number.POSITIVE_INFINITY };
+    availabilityEntries.set(namespace, entry);
+    void entry.promise.then(() => { entry.expires = Date.now() + 10000; }, () => {
+        if (availabilityEntries.get(namespace) === entry) availabilityEntries.delete(namespace);
+    });
+    return entry.promise;
+}

@@ -21,6 +21,7 @@ export const userInput = z
         /^[a-zA-Z0-9_.-]{3,60}$/,
         "Tên đăng nhập gồm 3–60 chữ, số, dấu chấm, gạch ngang hoặc gạch dưới.",
       ),
+    name: z.string().trim().max(500).optional(),
     password: z
       .string()
       .refine(
@@ -31,7 +32,7 @@ export const userInput = z
       ),
     email: z.union([z.email("Email không hợp lệ.").max(254), z.literal("")]).optional(),
     customRoleId: z.union([z.uuid(), z.literal("")]).optional(),
-    role: z.enum(["ADMIN", "CLASS_MANAGER", "ACCOUNTANT"]),
+    role: z.enum(["ADMIN", "CLASS_MANAGER", "ACCOUNTANT"]).nullable(),
     active: z.boolean(),
   })
   .refine((value) => value.id || value.password, {
@@ -40,9 +41,9 @@ export const userInput = z
   });
 export type UserInput = z.infer<typeof userInput>;
 
-// Directory identity fields are displayed read-only; only role/access are submitted to the server.
+// Directory identity fields are displayed read-only; only roles are submitted to the server.
 export const ssoUserEditorInput = z.object({
-  id:z.uuid(), username:z.string().min(1).max(150), password:z.string().max(0),
+  id:z.uuid(), name:z.string().optional(), username:z.string().min(1).max(150), password:z.string().max(0),
   email:z.string().optional(), customRoleId:z.union([z.uuid(),z.literal("")]).optional(),
-  role:z.enum(["ADMIN","CLASS_MANAGER","ACCOUNTANT"]), active:z.boolean(),
+  role:z.enum(["ADMIN","CLASS_MANAGER","ACCOUNTANT"]).nullable(), active:z.boolean(),
 });
