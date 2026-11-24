@@ -2,6 +2,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cccdFromQr } from "@/lib/cccd-qr";
+import { qrScanRegion } from "@/lib/camera-guide";
+import { CameraPreview } from "@/components/forms/camera-preview";
 export default function QrCamera({
   onCode,
   onClose,
@@ -12,6 +14,7 @@ export default function QrCamera({
   const video = useRef<HTMLVideoElement>(null);
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [hint, setHint] = useState("Đang mở camera…");
   const found = useEffectEvent(onCode);
   const close = useEffectEvent(onClose);
@@ -43,8 +46,8 @@ export default function QrCamera({
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
           audio: false,
         });
@@ -57,6 +60,7 @@ export default function QrCamera({
           return;
         }
         const element: HTMLVideoElement = video.current;
+        setCameraStream(stream);
         element.srcObject = stream;
         await element.play();
         if (disposed) {
@@ -64,24 +68,26 @@ export default function QrCamera({
           return;
         }
         setReady(true);
-        setHint("Đưa mã QR trên căn cước vào khung hình, giữ yên và đủ sáng.");
+        setHint("Đưa mã QR trên căn cước vào 4 góc của khung vuông, giữ yên và đủ sáng.");
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context)
           throw new Error(
             "Trình duyệt không hỗ trợ đọc hình ảnh. Hãy tìm thủ công.",
           );
+        let attempts = 0;
         function tick() {
           if (disposed) return;
           try {
             if (element.videoWidth && element.readyState >= 2) {
-              const scale = Math.min(
-                1,
-                960 / Math.max(element.videoWidth, element.videoHeight),
-              );
-              canvas.width = Math.round(element.videoWidth * scale);
-              canvas.height = Math.round(element.videoHeight * scale);
-              context!.drawImage(element, 0, 0, canvas.width, canvas.height);
+              // Read the guide at native resolution first: downscaling a whole
+              // frame can erase the fine modules of a small CCCD QR code.
+              // Periodically scan the whole image for codes outside the guide.
+              const wholeFrame = attempts++ % 4 === 3;
+              const region = qrScanRegion(element.videoWidth, element.videoHeight, wholeFrame);
+              canvas.width = region.outputWidth;
+              canvas.height = region.outputHeight;
+              context!.drawImage(element, region.x, region.y, region.width, region.height, 0, 0, canvas.width, canvas.height);
               const pixels = context!.getImageData(
                 0,
                 0,
@@ -143,14 +149,7 @@ export default function QrCamera({
       className="space-y-3 rounded-xl border bg-card p-4"
       aria-label="Quét QR căn cước"
     >
-      <video
-        ref={video}
-        muted
-        playsInline
-        autoPlay
-        aria-label="Camera quét căn cước"
-        className="aspect-[4/3] max-h-96 w-full rounded-lg bg-black object-contain"
-      />
+      <CameraPreview videoRef={video} stream={cameraStream} kind="qr" ready={ready && !error} label="Camera quét căn cước" />
       {error ? (
         <p role="alert" className="text-sm text-destructive">
           {error}

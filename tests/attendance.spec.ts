@@ -478,13 +478,19 @@ test("actual QR decoder with synthetic camera frames stops tracks and waits for 
             image.src = data;
             await image.decode();
             const canvas = document.createElement("canvas");
-            canvas.width = 600;
-            canvas.height = 600;
+            canvas.width = 1920;
+            canvas.height = 1080;
             const ctx = canvas.getContext("2d")!;
-            ctx.drawImage(image, 0, 0, 600, 600);
+            // A small QR on a large card/camera frame must retain its modules.
+            const drawFrame = () => {
+              ctx.fillStyle = "white";
+              ctx.fillRect(0, 0, 1920, 1080);
+              ctx.drawImage(image, 864, 444, 192, 192);
+            };
+            drawFrame();
             const stream = canvas.captureStream(5);
             const draw = setInterval(
-              () => ctx.drawImage(image, 0, 0, 600, 600),
+              drawFrame,
               100,
             );
             for (const track of stream.getTracks()) {

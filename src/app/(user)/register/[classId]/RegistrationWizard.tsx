@@ -437,7 +437,7 @@ export default function RegistrationWizard({ classData, bankSettings }: Props) {
                 </div>}
               </fieldset>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
-                <DocumentUpload label={`Ảnh mặt trước CCCD ${classData.courseType === "COMMUNITY_FIRST_AID" ? "(Tùy chọn)" : "*"}`} uploaded={Boolean(formData.idPhotoUrl)} busy={uploadingField === "idPhotoUrl"} disabled={isLoading || Boolean(uploadingField)} onUpload={file=>handleFileUpload(file,"idPhotoUrl")} />
+                <DocumentUpload guide="card" label={`Ảnh mặt trước CCCD ${classData.courseType === "COMMUNITY_FIRST_AID" ? "(Tùy chọn)" : "*"}`} uploaded={Boolean(formData.idPhotoUrl)} busy={uploadingField === "idPhotoUrl"} disabled={isLoading || Boolean(uploadingField)} onUpload={file=>handleFileUpload(file,"idPhotoUrl")} />
                 <DocumentUpload label={`${classData.courseType === "AMBULANCE_DRIVER" ? "Bằng lái xe" : "Văn bằng chuyên môn"} ${classData.courseType === "COMMUNITY_FIRST_AID" ? "(Nếu có)" : "*"}`} uploaded={Boolean(formData.degreeUrl)} busy={uploadingField === "degreeUrl"} disabled={isLoading || Boolean(uploadingField)} onUpload={file=>handleFileUpload(file,"degreeUrl")} />
               </div>
 

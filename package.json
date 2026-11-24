@@ -1,6 +1,6 @@
 {
   "name": "LearningPage",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "private": true,
   "scripts": {
     "dev": "next dev --port 3001",
@@ -20,6 +20,7 @@
     "migrate:files": "tsx scripts/migrate-private-files.ts",
     "test:students": "tsx tests/students.integration.ts",
     "test:attendance": "tsx tests/attendance.integration.ts",
+    "test:camera": "tsx tests/camera-guide.test.ts",
     "test:date-time": "tsx tests/date-time-input.test.ts",
     "test:student-directory": "tsx tests/student-directory.integration.ts",
     "test:rbac": "tsx tests/rbac.integration.ts",
